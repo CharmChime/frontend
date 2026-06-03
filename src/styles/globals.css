@@ -1,0 +1,257 @@
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600&display=swap');
+
+@custom-variant dark (&:is(.dark *));
+
+:root {
+  /* CharmChime Design System - Child Interface Colors */
+  --child-blue: #7ab8e8;
+  --child-blue-dark: #5a9fd4;
+  --child-yellow: #ffd670;
+  --child-yellow-dark: #ffc940;
+  --child-mint: #8ce8b5;
+  --child-mint-dark: #6dd89b;
+  --child-peach: #ffbfa8;
+  --child-lavender: #d1bff0;
+  --child-bg: #fef9f3;
+  --child-card: #ffffff;
+  
+  /* CharmChime Design System - Parent Interface Colors */
+  --parent-teal: #237e8f;
+  --parent-teal-dark: #1a5f6d;
+  --parent-slate: #334155;
+  --parent-slate-light: #475569;
+  --parent-bg: #f8fafc;
+  --parent-card: #ffffff;
+  
+  /* Typography */
+  --font-family: 'Poppins', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-size: 16px;
+  --line-height-relaxed: 1.8;
+  --line-height-loose: 2;
+  
+  /* Base Design Tokens */
+  --background: #fef9f3;
+  --foreground: #2d3748;
+  --card: #ffffff;
+  --card-foreground: #2d3748;
+  --popover: #ffffff;
+  --popover-foreground: #2d3748;
+  --primary: #7ab8e8;
+  --primary-foreground: #1a365d;
+  --secondary: #ffd670;
+  --secondary-foreground: #744210;
+  --muted: #f3f4f6;
+  --muted-foreground: #6b7280;
+  --accent: #8ce8b5;
+  --accent-foreground: #065f46;
+  --destructive: #ef4444;
+  --destructive-foreground: #ffffff;
+  --border: rgba(0, 0, 0, 0.08);
+  --input: transparent;
+  --input-background: #ffffff;
+  --switch-background: #cbd5e1;
+  --font-weight-medium: 500;
+  --font-weight-normal: 400;
+  --ring: #7ab8e8;
+  --chart-1: #7ab8e8;
+  --chart-2: #ffd670;
+  --chart-3: #8ce8b5;
+  --chart-4: #ffbfa8;
+  --chart-5: #d1bff0;
+  
+  /* Radius - Extra rounded for playful feel */
+  --radius: 1.5rem;
+  --radius-full: 9999px;
+  
+  /* Shadows */
+  --shadow-soft: 0 4px 16px rgba(0, 0, 0, 0.06);
+  --shadow-medium: 0 8px 24px rgba(0, 0, 0, 0.08);
+  --shadow-large: 0 12px 32px rgba(0, 0, 0, 0.1);
+  
+  --sidebar: #fef9f3;
+  --sidebar-foreground: #2d3748;
+  --sidebar-primary: #7ab8e8;
+  --sidebar-primary-foreground: #1a365d;
+  --sidebar-accent: #ffd670;
+  --sidebar-accent-foreground: #744210;
+  --sidebar-border: rgba(0, 0, 0, 0.08);
+  --sidebar-ring: #7ab8e8;
+}
+
+.dark {
+  --background: #1e293b;
+  --foreground: #f1f5f9;
+  --card: #334155;
+  --card-foreground: #f1f5f9;
+  --popover: #334155;
+  --popover-foreground: #f1f5f9;
+  --primary: #7ab8e8;
+  --primary-foreground: #0f172a;
+  --secondary: #ffd670;
+  --secondary-foreground: #0f172a;
+  --muted: #475569;
+  --muted-foreground: #cbd5e1;
+  --accent: #8ce8b5;
+  --accent-foreground: #0f172a;
+  --destructive: #dc2626;
+  --destructive-foreground: #f1f5f9;
+  --border: rgba(255, 255, 255, 0.1);
+  --input: rgba(255, 255, 255, 0.1);
+  --ring: #7ab8e8;
+  --font-weight-medium: 500;
+  --font-weight-normal: 400;
+  --chart-1: #7ab8e8;
+  --chart-2: #ffd670;
+  --chart-3: #8ce8b5;
+  --chart-4: #ffb8a3;
+  --chart-5: #c4b4e7;
+  --sidebar: #1e293b;
+  --sidebar-foreground: #f1f5f9;
+  --sidebar-primary: #7ab8e8;
+  --sidebar-primary-foreground: #0f172a;
+  --sidebar-accent: #ffd670;
+  --sidebar-accent-foreground: #0f172a;
+  --sidebar-border: rgba(255, 255, 255, 0.1);
+  --sidebar-ring: #7ab8e8;
+  
+  /* Dark mode Child Interface Colors */
+  --child-bg: #1e293b;
+  --child-card: #334155;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-input-background: var(--input-background);
+  --color-switch-background: var(--switch-background);
+  --color-ring: var(--ring);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+  
+  /* CharmChime Custom Colors */
+  --color-child-blue: var(--child-blue);
+  --color-child-blue-dark: var(--child-blue-dark);
+  --color-child-yellow: var(--child-yellow);
+  --color-child-yellow-dark: var(--child-yellow-dark);
+  --color-child-mint: var(--child-mint);
+  --color-child-mint-dark: var(--child-mint-dark);
+  --color-child-peach: var(--child-peach);
+  --color-child-lavender: var(--child-lavender);
+  --color-child-bg: var(--child-bg);
+  --color-child-card: var(--child-card);
+  --color-parent-teal: var(--parent-teal);
+  --color-parent-teal-dark: var(--parent-teal-dark);
+  --color-parent-slate: var(--parent-slate);
+  --color-parent-slate-light: var(--parent-slate-light);
+  --color-parent-bg: var(--parent-bg);
+  --color-parent-card: var(--parent-card);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    font-family: var(--font-family);
+  }
+}
+
+/**
+ * Base typography with dyslexia-friendly spacing. This is not applied to elements which have an ancestor with a Tailwind text class.
+ */
+@layer base {
+  :where(:not(:has([class*=' text-']), :not(:has([class^='text-'])))) {
+    h1 {
+      font-size: 2.25rem;
+      font-weight: 600;
+      line-height: var(--line-height-relaxed);
+      letter-spacing: 0.02em;
+    }
+
+    h2 {
+      font-size: 1.875rem;
+      font-weight: 600;
+      line-height: var(--line-height-relaxed);
+      letter-spacing: 0.02em;
+    }
+
+    h3 {
+      font-size: 1.5rem;
+      font-weight: 500;
+      line-height: var(--line-height-relaxed);
+      letter-spacing: 0.02em;
+    }
+
+    h4 {
+      font-size: 1.25rem;
+      font-weight: 500;
+      line-height: var(--line-height-relaxed);
+      letter-spacing: 0.01em;
+    }
+
+    p {
+      font-size: 1rem;
+      font-weight: 400;
+      line-height: var(--line-height-relaxed);
+      letter-spacing: 0.01em;
+    }
+
+    label {
+      font-size: 1rem;
+      font-weight: 500;
+      line-height: var(--line-height-relaxed);
+      letter-spacing: 0.01em;
+    }
+
+    button {
+      font-size: 1rem;
+      font-weight: 500;
+      line-height: var(--line-height-relaxed);
+      letter-spacing: 0.01em;
+    }
+
+    input, textarea {
+      font-size: 1rem;
+      font-weight: 400;
+      line-height: var(--line-height-relaxed);
+      letter-spacing: 0.01em;
+    }
+  }
+}
+
+html {
+  font-size: var(--font-size);
+}

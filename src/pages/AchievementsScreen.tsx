@@ -1,0 +1,314 @@
+import React, { useState } from 'react';
+import { Card } from '../components/Card';
+import { Button } from '../components/Button';
+import { Badge } from '../components/Badge';
+import { ChildSidebar } from '../components/ChildSidebar';
+import { MobileMenuButton } from '../components/MobileMenuButton';
+import { LogoutConfirmation } from '../components/LogoutConfirmation';
+import { ArrowLeft, Trophy, Star, Heart, Flame, BookOpen, Sparkles, Target, Award, Zap } from 'lucide-react';
+
+interface AchievementsScreenProps {
+  onBack: () => void;
+  childName?: string;
+  onNavigate?: (page: string) => void;
+  onLogout?: () => void;
+}
+
+export function AchievementsScreen({ onBack, childName = 'Friend', onNavigate, onLogout }: AchievementsScreenProps) {
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+
+  const handleLogout = () => {
+    setShowLogoutConfirm(false);
+    onLogout?.();
+  };
+
+  const handleSidebarNavigation = (page: string) => {
+    if (page === 'achievements') return; // Already here
+    if (page === 'home') {
+      onBack();
+    } else {
+      onNavigate?.(page);
+    }
+  };
+
+  const achievements = [
+    {
+      id: 1,
+      title: 'First Steps',
+      description: 'Write your first journal entry',
+      icon: <Star className="w-8 h-8" fill="currentColor" />,
+      color: 'from-[var(--child-yellow)] to-[#f59e0b]',
+      unlocked: true,
+      progress: 100,
+      date: 'Unlocked Oct 15, 2024',
+    },
+    {
+      id: 2,
+      title: 'Week Warrior',
+      description: 'Journal for 7 days in a row',
+      icon: <Flame className="w-8 h-8" />,
+      color: 'from-[var(--child-peach)] to-[#f97316]',
+      unlocked: true,
+      progress: 100,
+      date: 'Unlocked Oct 22, 2024',
+    },
+    {
+      id: 3,
+      title: 'Story Master',
+      description: 'Create 5 AI-powered stories',
+      icon: <BookOpen className="w-8 h-8" />,
+      color: 'from-[var(--child-lavender)] to-[#a855f7]',
+      unlocked: true,
+      progress: 100,
+      date: 'Unlocked Nov 5, 2024',
+    },
+    {
+      id: 4,
+      title: 'Emotion Explorer',
+      description: 'Express 10 different emotions',
+      icon: <Heart className="w-8 h-8" fill="currentColor" />,
+      color: 'from-[var(--child-mint)] to-[#10b981]',
+      unlocked: true,
+      progress: 100,
+      date: 'Unlocked Nov 12, 2024',
+    },
+    {
+      id: 5,
+      title: 'Century Club',
+      description: 'Write 100 journal entries',
+      icon: <Trophy className="w-8 h-8" />,
+      color: 'from-[var(--child-blue)] to-[#3b82f6]',
+      unlocked: false,
+      progress: 42,
+      date: '42/100 entries',
+    },
+    {
+      id: 6,
+      title: 'Month Master',
+      description: 'Journal every day for 30 days',
+      icon: <Target className="w-8 h-8" />,
+      color: 'from-purple-400 to-purple-600',
+      unlocked: false,
+      progress: 23,
+      date: '7/30 days',
+    },
+    {
+      id: 7,
+      title: 'Creative Genius',
+      description: 'Write 50 creative stories',
+      icon: <Sparkles className="w-8 h-8" fill="currentColor" />,
+      color: 'from-yellow-400 to-amber-500',
+      unlocked: false,
+      progress: 10,
+      date: '5/50 stories',
+    },
+    {
+      id: 8,
+      title: 'Lightning Writer',
+      description: 'Write 3 entries in one day',
+      icon: <Zap className="w-8 h-8" />,
+      color: 'from-blue-400 to-cyan-500',
+      unlocked: false,
+      progress: 66,
+      date: '2/3 entries',
+    },
+    {
+      id: 9,
+      title: 'Legendary Journaler',
+      description: 'Journal for 365 days straight',
+      icon: <Award className="w-8 h-8" />,
+      color: 'from-amber-400 to-orange-500',
+      unlocked: false,
+      progress: 1,
+      date: '7/365 days',
+    },
+  ];
+
+  const stats = {
+    totalAchievements: achievements.length,
+    unlocked: achievements.filter(a => a.unlocked).length,
+    points: 420,
+  };
+
+  return (
+    <div className="min-h-screen bg-[var(--child-bg)] flex">
+      {/* Mobile Menu Button */}
+      {onNavigate && onLogout && (
+        <MobileMenuButton onClick={() => setIsSidebarOpen(true)} />
+      )}
+
+      {/* Sidebar */}
+      {onNavigate && onLogout && (
+        <ChildSidebar 
+          childName={childName}
+          activeItem="achievements"
+          onNavigate={onNavigate}
+          onLogout={() => setShowLogoutConfirm(true)}
+          isOpen={isSidebarOpen}
+          onClose={() => setIsSidebarOpen(false)}
+          onLogoClick={onBack}
+        />
+      )}
+
+      <main className="flex-1 overflow-auto">
+        <div className="p-4 sm:p-6 lg:p-8 space-y-4 sm:space-y-6 max-w-6xl mx-auto">
+          {/* Header */}
+          <div className="flex items-center justify-between">
+            {!onNavigate && (
+              <button
+                onClick={onBack}
+                className="flex items-center gap-2 text-[#2d3748] hover:text-[#1a365d] transition-colors"
+              >
+                <ArrowLeft className="w-5 h-5" />
+                <span className="text-sm sm:text-base">Back to Home</span>
+              </button>
+            )}
+            {onNavigate && (
+              <MobileMenuButton
+                isOpen={isSidebarOpen}
+                onToggle={() => setIsSidebarOpen(!isSidebarOpen)}
+              />
+            )}
+          </div>
+
+          {/* Title */}
+          <div className="text-center space-y-2">
+            <div className="flex justify-center">
+              <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-gradient-to-br from-[var(--child-yellow)] to-[#f59e0b] flex items-center justify-center shadow-lg animate-bounce" style={{ animationDuration: '2s' }}>
+                <Trophy className="w-8 h-8 sm:w-10 sm:h-10 text-[#744210]" />
+              </div>
+            </div>
+            <h1 className="text-[#2d3748] text-xl sm:text-2xl lg:text-3xl">My Achievements 🏆</h1>
+            <p className="text-[#64748b] text-sm sm:text-base">Look at all the amazing things you've done!</p>
+          </div>
+
+          {/* Stats Overview */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
+            <Card variant="child" padding="medium">
+              <div className="text-center space-y-2">
+                <div className="w-12 h-12 sm:w-14 sm:h-14 mx-auto rounded-full bg-gradient-to-br from-[var(--child-yellow)] to-[#f59e0b] flex items-center justify-center">
+                  <Trophy className="w-6 h-6 sm:w-7 sm:h-7 text-[#744210]" />
+                </div>
+                <h3 className="text-[#2d3748] text-xl sm:text-2xl">{stats.unlocked}/{stats.totalAchievements}</h3>
+                <p className="text-xs sm:text-sm text-[#64748b]">Achievements Unlocked</p>
+              </div>
+            </Card>
+
+            <Card variant="child" padding="medium">
+              <div className="text-center space-y-2">
+                <div className="w-12 h-12 sm:w-14 sm:h-14 mx-auto rounded-full bg-gradient-to-br from-[var(--child-blue)] to-[#3b82f6] flex items-center justify-center">
+                  <Star className="w-6 h-6 sm:w-7 sm:h-7 text-[#1a365d]" fill="currentColor" />
+                </div>
+                <h3 className="text-[#2d3748] text-xl sm:text-2xl">{stats.points}</h3>
+                <p className="text-xs sm:text-sm text-[#64748b]">Total Points</p>
+              </div>
+            </Card>
+
+            <Card variant="child" padding="medium">
+              <div className="text-center space-y-2">
+                <div className="w-12 h-12 sm:w-14 sm:h-14 mx-auto rounded-full bg-gradient-to-br from-[var(--child-mint)] to-[#10b981] flex items-center justify-center">
+                  <Flame className="w-6 h-6 sm:w-7 sm:h-7 text-[#065f46]" />
+                </div>
+                <h3 className="text-[#2d3748] text-xl sm:text-2xl">7 Days</h3>
+                <p className="text-xs sm:text-sm text-[#64748b]">Current Streak</p>
+              </div>
+            </Card>
+          </div>
+
+          {/* Progress Bar */}
+          <Card variant="child">
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <h4 className="text-[#2d3748] text-base sm:text-lg">Overall Progress</h4>
+                <Badge variant="child-yellow">{Math.round((stats.unlocked / stats.totalAchievements) * 100)}%</Badge>
+              </div>
+              <div className="h-3 sm:h-4 bg-gray-200 rounded-full overflow-hidden">
+                <div 
+                  className="h-full bg-gradient-to-r from-[var(--child-yellow)] to-[#f59e0b] transition-all duration-500"
+                  style={{ width: `${(stats.unlocked / stats.totalAchievements) * 100}%` }}
+                />
+              </div>
+              <p className="text-xs sm:text-sm text-[#64748b]">Keep journaling to unlock more achievements!</p>
+            </div>
+          </Card>
+
+          {/* Achievements Grid */}
+          <div className="space-y-4">
+            <h3 className="text-[#2d3748] text-lg sm:text-xl">All Achievements</h3>
+            
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
+              {achievements.map(achievement => (
+                <Card 
+                  key={achievement.id} 
+                  variant="child" 
+                  className={`transition-all ${achievement.unlocked ? 'hover:shadow-xl' : 'opacity-60'}`}
+                >
+                  <div className="space-y-4">
+                    <div className="flex items-start justify-between">
+                      <div className={`w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-gradient-to-br ${achievement.color} flex items-center justify-center shadow-md ${achievement.unlocked ? '' : 'grayscale'}`}>
+                        <div className="text-white">
+                          {achievement.icon}
+                        </div>
+                      </div>
+                      {achievement.unlocked && (
+                        <Badge variant="child-mint">Unlocked ✓</Badge>
+                      )}
+                    </div>
+
+                    <div className="space-y-1">
+                      <h4 className="text-[#2d3748] text-base sm:text-lg">{achievement.title}</h4>
+                      <p className="text-xs sm:text-sm text-[#64748b]">{achievement.description}</p>
+                    </div>
+
+                    {!achievement.unlocked && (
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between text-xs sm:text-sm">
+                          <span className="text-[#64748b]">Progress</span>
+                          <span className="text-[#2d3748]">{achievement.progress}%</span>
+                        </div>
+                        <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
+                          <div 
+                            className={`h-full bg-gradient-to-r ${achievement.color} transition-all duration-500`}
+                            style={{ width: `${achievement.progress}%` }}
+                          />
+                        </div>
+                      </div>
+                    )}
+
+                    <p className="text-xs text-[#94a3b8]">{achievement.date}</p>
+                  </div>
+                </Card>
+              ))}
+            </div>
+          </div>
+
+          {/* Motivational Card */}
+          <Card variant="child" className="bg-gradient-to-br from-[var(--child-blue)]/20 to-[var(--child-mint)]/20">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 sm:gap-6">
+              <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-full bg-gradient-to-br from-[var(--child-yellow)] to-[#f59e0b] flex items-center justify-center shadow-lg flex-shrink-0">
+                <span className="text-2xl sm:text-3xl">🌟</span>
+              </div>
+              <div className="flex-1">
+                <h3 className="text-[#2d3748] mb-2 text-base sm:text-lg">Keep Going! 💪</h3>
+                <p className="text-[#4a5568] text-sm sm:text-base">
+                  You're doing amazing! Every journal entry helps you grow. Keep writing, keep exploring, and watch your achievements grow!
+                </p>
+              </div>
+            </div>
+          </Card>
+        </div>
+      </main>
+
+      {/* Logout Confirmation */}
+      {onLogout && (
+        <LogoutConfirmation 
+          isOpen={showLogoutConfirm}
+          onConfirm={handleLogout}
+          onCancel={() => setShowLogoutConfirm(false)}
+          variant="child"
+        />
+      )}
+    </div>
+  );
+}
