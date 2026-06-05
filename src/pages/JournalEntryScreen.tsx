@@ -101,7 +101,7 @@ export function JournalEntryScreen({ onBack, onSave, childName = 'Friend', onNav
       <main className="flex-1 overflow-auto">
         {/* Header */}
         <header className="bg-gradient-to-r from-[var(--child-blue)] to-[var(--child-mint)] shadow-lg sticky top-0 z-10">
-          <div className="px-4 sm:px-6 lg:px-8 py-4 sm:py-6">
+          <div className="pl-20 pr-4 sm:px-6 lg:px-8 py-4 sm:py-6">
             <div className="flex items-center justify-between max-w-4xl mx-auto">
               <div className="flex items-center gap-3">
                 {!onNavigate && (

@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { Navigate, Route, Routes, useNavigate, useParams } from 'react-router';
 import { IntroLandingPage } from '../pages/IntroLandingPage';
 import { LandingPage } from '../pages/LandingPage';
 import { ChildAuthScreen } from '../pages/ChildAuthScreen';
@@ -18,270 +19,303 @@ import { ParentInsightsScreen } from '../pages/ParentInsightsScreen';
 import { ParentActivityScreen } from '../pages/ParentActivityScreen';
 import { ParentReportsScreen } from '../pages/ParentReportsScreen';
 
-type Screen = 
-  | 'intro'
-  | 'landing'
-  | 'child-auth'
-  | 'child-home'
-  | 'journal-entry'
-  | 'story-mode'
-  | 'memories'
-  | 'journal-detail'
-  | 'calendar'
-  | 'achievements'
-  | 'child-settings'
-  | 'parent-auth'
-  | 'parent-dashboard'
-  | 'parent-settings'
-  | 'parent-analytics'
-  | 'parent-insights'
-  | 'parent-activity'
-  | 'parent-reports';
+const childRoutes: Record<string, string> = {
+  home: '/child/home',
+  entry: '/child/journal-entry',
+  'story-mode': '/child/story-mode',
+  memories: '/child/memories',
+  calendar: '/child/calendar',
+  achievements: '/child/achievements',
+  settings: '/child/settings',
+};
+
+const parentRoutes: Record<string, string> = {
+  dashboard: '/parent/dashboard',
+  overview: '/parent/dashboard',
+  analytics: '/parent/analytics',
+  insights: '/parent/insights',
+  activity: '/parent/activity',
+  reports: '/parent/reports',
+  settings: '/parent/settings',
+};
+
+function JournalDetailRoute({
+  childName,
+  onBack,
+  onNavigate,
+  onLogout,
+}: {
+  childName: string;
+  onBack: () => void;
+  onNavigate: (page: string) => void;
+  onLogout: () => void;
+}) {
+  const { entryId } = useParams();
+  const parsedEntryId = Number(entryId);
+
+  return (
+    <JournalDetailScreen
+      onBack={onBack}
+      childName={childName}
+      onNavigate={onNavigate}
+      onLogout={onLogout}
+      entryId={Number.isFinite(parsedEntryId) ? parsedEntryId : 1}
+    />
+  );
+}
 
 export function ScreenNavigation() {
-  const [currentScreen, setCurrentScreen] = useState<Screen>('intro');
+  const navigate = useNavigate();
   const [childName, setChildName] = useState('');
-  const [userType, setUserType] = useState<'child' | 'parent' | null>(null);
-  const [selectedEntryId, setSelectedEntryId] = useState<number>(1);
+  const [, setUserType] = useState<'child' | 'parent' | null>(null);
+
+  const goTo = (path: string) => {
+    navigate(path);
+  };
 
   const handleChildLogin = (name: string, pin: string) => {
     setChildName(name);
     setUserType('child');
-    setCurrentScreen('child-home');
+    goTo('/child/home');
   };
 
   const handleChildRegister = (name: string, age: string, pin: string) => {
     setChildName(name);
     setUserType('child');
-    setCurrentScreen('child-home');
+    goTo('/child/home');
   };
 
   const handleParentLogin = (email: string, password: string) => {
     setUserType('parent');
-    setCurrentScreen('parent-dashboard');
+    goTo('/parent/dashboard');
   };
 
   const handleParentRegister = (name: string, email: string, password: string) => {
     setUserType('parent');
-    setCurrentScreen('parent-dashboard');
+    goTo('/parent/dashboard');
   };
 
   const handleSaveEntry = (entry: { title: string; content: string; mood: string }) => {
     console.log('Entry saved:', entry);
-    setCurrentScreen('child-home');
+    goTo('/child/home');
   };
 
   const handleLogout = () => {
     setUserType(null);
     setChildName('');
-    setCurrentScreen('landing');
+    goTo('/landing');
   };
 
-  const handleLogoClick = () => {
-    setCurrentScreen('landing');
-  };
-
-  // Helper function to map sidebar navigation to screen names
   const handleChildNavigation = (page: string) => {
-    const pageMap: { [key: string]: Screen } = {
-      'home': 'child-home',
-      'entry': 'journal-entry',
-      'story-mode': 'story-mode',
-      'memories': 'memories',
-      'calendar': 'calendar',
-      'achievements': 'achievements',
-      'settings': 'child-settings',
-    };
-    
-    const screen = pageMap[page];
-    if (screen) {
-      setCurrentScreen(screen);
+    const path = childRoutes[page];
+
+    if (path) {
+      goTo(path);
     }
   };
 
-  const renderScreen = () => {
-    switch (currentScreen) {
-      case 'intro':
-        return (
-          <IntroLandingPage 
-            onGetStarted={() => setCurrentScreen('landing')}
+  const handleParentNavigation = (page: string) => {
+    const path = parentRoutes[page];
+
+    if (path) {
+      goTo(path);
+    }
+  };
+
+  const childDisplayName = childName || 'Friend';
+  const parentChildName = childName || 'Emma';
+
+  return (
+    <Routes>
+      <Route
+        path="/"
+        element={<IntroLandingPage onGetStarted={() => goTo('/landing')} />}
+      />
+      <Route
+        path="/landing"
+        element={
+          <LandingPage
+            onSelectChild={() => goTo('/child/auth')}
+            onSelectParent={() => goTo('/parent/auth')}
           />
-        );
-      
-      case 'landing':
-        return (
-          <LandingPage 
-            onSelectChild={() => setCurrentScreen('child-auth')}
-            onSelectParent={() => setCurrentScreen('parent-auth')}
-          />
-        );
-      
-      case 'child-auth':
-        return (
+        }
+      />
+      <Route
+        path="/child/auth"
+        element={
           <ChildAuthScreen
             onLogin={handleChildLogin}
             onRegister={handleChildRegister}
-            onBack={() => setCurrentScreen('landing')}
+            onBack={() => goTo('/landing')}
           />
-        );
-      
-      case 'child-home':
-        return (
+        }
+      />
+      <Route
+        path="/child/home"
+        element={
           <ChildHomeScreenRedesigned
             childName={childName}
-            onNewEntry={() => setCurrentScreen('journal-entry')}
-            onViewMemories={() => setCurrentScreen('memories')}
-            onStoryMode={() => setCurrentScreen('story-mode')}
-            onCalendar={() => setCurrentScreen('calendar')}
-            onAchievements={() => setCurrentScreen('achievements')}
-            onSettings={() => setCurrentScreen('child-settings')}
+            onNewEntry={() => goTo('/child/journal-entry')}
+            onViewMemories={() => goTo('/child/memories')}
+            onStoryMode={() => goTo('/child/story-mode')}
+            onCalendar={() => goTo('/child/calendar')}
+            onAchievements={() => goTo('/child/achievements')}
+            onSettings={() => goTo('/child/settings')}
             onLogout={handleLogout}
           />
-        );
-      
-      case 'journal-entry':
-        return (
+        }
+      />
+      <Route
+        path="/child/journal-entry"
+        element={
           <JournalEntryScreen
-            onBack={() => setCurrentScreen('child-home')}
+            onBack={() => goTo('/child/home')}
             onSave={handleSaveEntry}
-            childName={childName}
+            childName={childDisplayName}
             onNavigate={handleChildNavigation}
             onLogout={handleLogout}
           />
-        );
-      
-      case 'story-mode':
-        return (
-          <StoryModeScreen 
-            onBack={() => setCurrentScreen('child-home')} 
-            childName={childName}
+        }
+      />
+      <Route
+        path="/child/story-mode"
+        element={
+          <StoryModeScreen
+            onBack={() => goTo('/child/home')}
+            childName={childDisplayName}
             onNavigate={handleChildNavigation}
             onLogout={handleLogout}
           />
-        );
-      
-      case 'memories':
-        return (
-          <MemoriesScreen 
-            onBack={() => setCurrentScreen('child-home')} 
-            childName={childName}
+        }
+      />
+      <Route
+        path="/child/memories"
+        element={
+          <MemoriesScreen
+            onBack={() => goTo('/child/home')}
+            childName={childDisplayName}
             onNavigate={handleChildNavigation}
             onLogout={handleLogout}
-            onViewEntry={(entryId) => {
-              setSelectedEntryId(entryId);
-              setCurrentScreen('journal-detail');
-            }}
+            onViewEntry={(entryId) => goTo(`/child/journal-detail/${entryId}`)}
           />
-        );
-      
-      case 'journal-detail':
-        return (
-          <JournalDetailScreen 
-            onBack={() => setCurrentScreen('memories')} 
-            childName={childName}
-            onNavigate={handleChildNavigation}
-            onLogout={handleLogout}
-            entryId={selectedEntryId}
-          />
-        );
-      
-      case 'calendar':
-        return (
-          <CalendarScreen 
-            onBack={() => setCurrentScreen('child-home')} 
-            childName={childName}
+        }
+      />
+      <Route
+        path="/child/journal-detail/:entryId"
+        element={
+          <JournalDetailRoute
+            onBack={() => goTo('/child/memories')}
+            childName={childDisplayName}
             onNavigate={handleChildNavigation}
             onLogout={handleLogout}
           />
-        );
-      
-      case 'achievements':
-        return (
-          <AchievementsScreen 
-            onBack={() => setCurrentScreen('child-home')} 
-            childName={childName}
+        }
+      />
+      <Route
+        path="/child/journal-detail"
+        element={<Navigate to="/child/journal-detail/1" replace />}
+      />
+      <Route
+        path="/child/calendar"
+        element={
+          <CalendarScreen
+            onBack={() => goTo('/child/home')}
+            childName={childDisplayName}
             onNavigate={handleChildNavigation}
             onLogout={handleLogout}
           />
-        );
-      
-      case 'child-settings':
-        return (
-          <ChildSettingsScreen 
-            onBack={() => setCurrentScreen('child-home')} 
-            childName={childName}
+        }
+      />
+      <Route
+        path="/child/achievements"
+        element={
+          <AchievementsScreen
+            onBack={() => goTo('/child/home')}
+            childName={childDisplayName}
             onNavigate={handleChildNavigation}
             onLogout={handleLogout}
           />
-        );
-      
-      case 'parent-auth':
-        return (
+        }
+      />
+      <Route
+        path="/child/settings"
+        element={
+          <ChildSettingsScreen
+            onBack={() => goTo('/child/home')}
+            childName={childDisplayName}
+            onNavigate={handleChildNavigation}
+            onLogout={handleLogout}
+          />
+        }
+      />
+      <Route
+        path="/parent/auth"
+        element={
           <ParentAuthScreen
             onLogin={handleParentLogin}
             onRegister={handleParentRegister}
-            onBack={() => setCurrentScreen('landing')}
+            onBack={() => goTo('/landing')}
           />
-        );
-      
-      case 'parent-dashboard':
-        return (
-          <ParentDashboardRedesigned 
-            childName={childName || 'Emma'} 
+        }
+      />
+      <Route
+        path="/parent/dashboard"
+        element={
+          <ParentDashboardRedesigned
+            childName={parentChildName}
             onLogout={handleLogout}
-            onSettings={() => setCurrentScreen('parent-settings')}
-            onNavigate={(page) => setCurrentScreen(`parent-${page}` as Screen)}
+            onSettings={() => goTo('/parent/settings')}
+            onNavigate={handleParentNavigation}
           />
-        );
-      
-      case 'parent-settings':
-        return <ParentSettingsScreen onBack={() => setCurrentScreen('parent-dashboard')} />;
-      
-      case 'parent-analytics':
-        return (
-          <ParentAnalyticsScreen 
-            childName={childName || 'Emma'} 
-            onNavigate={(page) => setCurrentScreen(`parent-${page}` as Screen)}
-            onLogout={handleLogout}
-          />
-        );
-      
-      case 'parent-insights':
-        return (
-          <ParentInsightsScreen 
-            childName={childName || 'Emma'} 
-            onNavigate={(page) => setCurrentScreen(`parent-${page}` as Screen)}
+        }
+      />
+      <Route
+        path="/parent/settings"
+        element={<ParentSettingsScreen onBack={() => goTo('/parent/dashboard')} />}
+      />
+      <Route
+        path="/parent/analytics"
+        element={
+          <ParentAnalyticsScreen
+            childName={parentChildName}
+            onNavigate={handleParentNavigation}
             onLogout={handleLogout}
           />
-        );
-      
-      case 'parent-activity':
-        return (
-          <ParentActivityScreen 
-            childName={childName || 'Emma'} 
-            onNavigate={(page) => setCurrentScreen(`parent-${page}` as Screen)}
+        }
+      />
+      <Route
+        path="/parent/insights"
+        element={
+          <ParentInsightsScreen
+            childName={parentChildName}
+            onNavigate={handleParentNavigation}
             onLogout={handleLogout}
           />
-        );
-      
-      case 'parent-reports':
-        return (
-          <ParentReportsScreen 
-            childName={childName || 'Emma'} 
-            onNavigate={(page) => setCurrentScreen(`parent-${page}` as Screen)}
+        }
+      />
+      <Route
+        path="/parent/activity"
+        element={
+          <ParentActivityScreen
+            childName={parentChildName}
+            onNavigate={handleParentNavigation}
             onLogout={handleLogout}
           />
-        );
-      
-      default:
-        return (
-          <LandingPage 
-            onSelectChild={() => setCurrentScreen('child-auth')}
-            onSelectParent={() => setCurrentScreen('parent-auth')}
+        }
+      />
+      <Route
+        path="/parent/reports"
+        element={
+          <ParentReportsScreen
+            childName={parentChildName}
+            onNavigate={handleParentNavigation}
+            onLogout={handleLogout}
           />
-        );
-    }
-  };
-
-  return <div>{renderScreen()}</div>;
+        }
+      />
+      <Route path="/child" element={<Navigate to="/child/home" replace />} />
+      <Route path="/parent" element={<Navigate to="/parent/dashboard" replace />} />
+      <Route path="*" element={<Navigate to="/landing" replace />} />
+    </Routes>
+  );
 }

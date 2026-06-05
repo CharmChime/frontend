@@ -152,7 +152,7 @@ export function AchievementsScreen({ onBack, childName = 'Friend', onNavigate, o
       )}
 
       <main className="flex-1 overflow-auto">
-        <div className="p-4 sm:p-6 lg:p-8 space-y-4 sm:space-y-6 max-w-6xl mx-auto">
+        <div className="px-4 pb-4 pt-20 sm:p-6 lg:p-8 space-y-4 sm:space-y-6 max-w-6xl mx-auto">
           {/* Header */}
           <div className="flex items-center justify-between">
             {!onNavigate && (
@@ -163,12 +163,6 @@ export function AchievementsScreen({ onBack, childName = 'Friend', onNavigate, o
                 <ArrowLeft className="w-5 h-5" />
                 <span className="text-sm sm:text-base">Back to Home</span>
               </button>
-            )}
-            {onNavigate && (
-              <MobileMenuButton
-                isOpen={isSidebarOpen}
-                onToggle={() => setIsSidebarOpen(!isSidebarOpen)}
-              />
             )}
           </div>
 

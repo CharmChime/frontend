@@ -162,7 +162,7 @@ ${childName} and Alex hopped from planet to planet, discovering treasures, meeti
       <main className="flex-1 overflow-auto">
         {/* Header */}
         <header className="bg-gradient-to-r from-[var(--child-lavender)] to-[var(--child-peach)] shadow-lg sticky top-0 z-10">
-          <div className="px-4 sm:px-6 lg:px-8 py-4 sm:py-6">
+          <div className="pl-20 pr-4 sm:px-6 lg:px-8 py-4 sm:py-6">
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
               <div className="flex items-center gap-3">
                 {!onNavigate && (

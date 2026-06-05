@@ -76,7 +76,7 @@ export function ChildSettingsScreen({ onBack, childName, onNavigate, onLogout }:
       <main className="flex-1 overflow-auto">
         {/* Header */}
         <header className="bg-white border-b border-gray-200 shadow-sm sticky top-0 z-10">
-          <div className="px-4 sm:px-6 lg:px-8 py-4 sm:py-6">
+          <div className="pl-20 pr-4 sm:px-6 lg:px-8 py-4 sm:py-6">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
               <div className="flex items-center gap-3 sm:gap-4">
                 {!onNavigate && (

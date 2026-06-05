@@ -1,9 +1,8 @@
 import React from 'react';
 
-interface CardProps {
+interface CardProps extends React.HTMLAttributes<HTMLDivElement> {
   children: React.ReactNode;
   variant?: 'child' | 'parent';
-  className?: string;
   padding?: 'small' | 'medium' | 'large';
 }
 
@@ -11,7 +10,12 @@ export function Card({
   children, 
   variant = 'child', 
   className = '',
-  padding = 'medium'
+  padding = 'medium',
+  onClick,
+  onKeyDown,
+  tabIndex,
+  role,
+  ...props
 }: CardProps) {
   const variantClasses = {
     child: 'bg-[var(--child-card)] border-2 border-transparent',
@@ -24,8 +28,27 @@ export function Card({
     large: 'p-8',
   };
 
+  const isInteractive = Boolean(onClick);
+
+  const handleKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
+    onKeyDown?.(event);
+
+    if (event.defaultPrevented || !onClick) {
+      return;
+    }
+
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      onClick(event as unknown as React.MouseEvent<HTMLDivElement>);
+    }
+  };
+
   return (
     <div
+      onClick={onClick}
+      onKeyDown={handleKeyDown}
+      role={role || (isInteractive ? 'button' : undefined)}
+      tabIndex={tabIndex ?? (isInteractive ? 0 : undefined)}
       className={`
         ${variant === 'child' ? 'rounded-[1.5rem]' : 'rounded-xl'}
         ${variantClasses[variant]}
@@ -35,6 +58,7 @@ export function Card({
         hover:shadow-[0_8px_24px_rgba(0,0,0,0.08)]
         ${className}
       `}
+      {...props}
     >
       {children}
     </div>

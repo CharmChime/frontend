@@ -3,6 +3,8 @@ import { Card } from '../components/Card';
 import { Button } from '../components/Button';
 import { Badge } from '../components/Badge';
 import { LogoutConfirmation } from '../components/LogoutConfirmation';
+import { ChildSidebar } from '../components/ChildSidebar';
+import { MobileMenuButton } from '../components/MobileMenuButton';
 import { Sparkles, PenLine, BookOpen, Settings, LogOut, Calendar, Trophy, Home, Wand2, Smile, Star, Heart } from 'lucide-react';
 import logo from '../assets/35160e99e546074153c34366a831aa0e30d421e6.png';
 
@@ -29,6 +31,7 @@ export function ChildHomeScreenRedesigned({
 }: ChildHomeScreenRedesignedProps) {
   const [activeTab, setActiveTab] = useState('home');
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
   const handleLogout = () => {
     setShowLogoutConfirm(false);
@@ -41,6 +44,7 @@ export function ChildHomeScreenRedesigned({
       case 'home':
         // Already on home
         break;
+      case 'entry':
       case 'new-entry':
         onNewEntry();
         break;
@@ -97,8 +101,21 @@ export function ChildHomeScreenRedesigned({
 
   return (
     <div className="min-h-screen bg-[var(--child-bg)] flex">
+      <div className="lg:hidden">
+        <MobileMenuButton onClick={() => setIsSidebarOpen(true)} />
+        <ChildSidebar
+          childName={childName}
+          activeItem={activeTab}
+          onNavigate={handleNavigation}
+          onLogout={() => setShowLogoutConfirm(true)}
+          isOpen={isSidebarOpen}
+          onClose={() => setIsSidebarOpen(false)}
+          onLogoClick={() => handleNavigation('home')}
+        />
+      </div>
+
       {/* Sidebar */}
-      <aside className="w-64 bg-white border-r border-gray-200 shadow-lg flex flex-col">
+      <aside className="hidden lg:flex w-64 bg-white border-r border-gray-200 shadow-lg flex-col">
         {/* Logo/Profile Section */}
         <div className="p-6 border-b border-gray-200">
           <div className="flex items-center gap-3 mb-4">
@@ -170,16 +187,17 @@ export function ChildHomeScreenRedesigned({
       <main className="flex-1 overflow-auto">
         {/* Header */}
         <header className="bg-white border-b border-gray-200 shadow-sm sticky top-0 z-10">
-          <div className="px-8 py-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <h1 className="text-[#2d3748]">Hello, {childName}! 👋</h1>
+          <div className="pl-20 pr-4 py-4 sm:px-6 lg:px-8 sm:py-6">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+              <div className="min-w-0">
+                <h1 className="text-[#2d3748] text-xl sm:text-2xl lg:text-3xl truncate">Hello, {childName}! 👋</h1>
                 <p className="text-[#64748b] mt-1">Ready to share your story today?</p>
               </div>
               <Button 
                 variant="child-blue" 
                 icon={<PenLine className="w-5 h-5" />}
                 onClick={onNewEntry}
+                className="w-full sm:w-auto"
               >
                 New Entry
               </Button>
@@ -188,7 +206,7 @@ export function ChildHomeScreenRedesigned({
         </header>
 
         {/* Content */}
-        <div className="p-8 space-y-6">
+        <div className="p-4 sm:p-6 lg:p-8 space-y-6">
           {/* Avatar Greeting Card */}
           <Card variant="child" className="bg-gradient-to-br from-white to-[var(--child-lavender)]/20">
             <div className="flex items-center gap-6">
@@ -206,19 +224,29 @@ export function ChildHomeScreenRedesigned({
 
           {/* Quick Actions Grid */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <Card variant="child" className="cursor-pointer hover:shadow-[0_12px_32px_rgba(0,0,0,0.1)] transition-all" onClick={onNewEntry}>
+            <Card
+              variant="child"
+              className="cursor-pointer hover:shadow-[0_12px_32px_rgba(0,0,0,0.1)] transition-all focus-visible:ring-4 focus-visible:ring-[var(--child-blue)]/40"
+              onClick={onNewEntry}
+              aria-label="Create journal entry"
+            >
               <div className="text-center space-y-4">
                 <div className="w-16 h-16 mx-auto rounded-full bg-[var(--child-blue)] flex items-center justify-center shadow-md">
                   <PenLine className="w-8 h-8 text-[#1a365d]" />
                 </div>
                 <div>
-                  <h4 className="text-[#2d3748] mb-2">Write in Journal</h4>
+                  <h4 className="text-[#2d3748] mb-2">Create Journal</h4>
                   <p className="text-[#64748b] text-sm">Share your thoughts and feelings</p>
                 </div>
               </div>
             </Card>
 
-            <Card variant="child" className="cursor-pointer hover:shadow-[0_12px_32px_rgba(0,0,0,0.1)] transition-all" onClick={onStoryMode}>
+            <Card
+              variant="child"
+              className="cursor-pointer hover:shadow-[0_12px_32px_rgba(0,0,0,0.1)] transition-all focus-visible:ring-4 focus-visible:ring-[var(--child-mint)]/40"
+              onClick={onStoryMode}
+              aria-label="Create story"
+            >
               <div className="text-center space-y-4">
                 <div className="w-16 h-16 mx-auto rounded-full bg-[var(--child-mint)] flex items-center justify-center shadow-md">
                   <Sparkles className="w-8 h-8 text-[#065f46]" fill="currentColor" />
@@ -230,13 +258,18 @@ export function ChildHomeScreenRedesigned({
               </div>
             </Card>
 
-            <Card variant="child" className="cursor-pointer hover:shadow-[0_12px_32px_rgba(0,0,0,0.1)] transition-all" onClick={onViewMemories}>
+            <Card
+              variant="child"
+              className="cursor-pointer hover:shadow-[0_12px_32px_rgba(0,0,0,0.1)] transition-all focus-visible:ring-4 focus-visible:ring-[var(--child-yellow)]/40"
+              onClick={onViewMemories}
+              aria-label="Open my memories"
+            >
               <div className="text-center space-y-4">
                 <div className="w-16 h-16 mx-auto rounded-full bg-[var(--child-yellow)] flex items-center justify-center shadow-md">
                   <BookOpen className="w-8 h-8 text-[#744210]" />
                 </div>
                 <div>
-                  <h4 className="text-[#2d3748] mb-2">Read Memories</h4>
+                  <h4 className="text-[#2d3748] mb-2">My Memories</h4>
                   <p className="text-[#64748b] text-sm">Look back at past entries</p>
                 </div>
               </div>
