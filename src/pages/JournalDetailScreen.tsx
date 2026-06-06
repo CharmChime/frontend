@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Card } from '../components/Card';
 import { Button } from '../components/Button';
 import { IconButton } from '../components/IconButton';
@@ -7,27 +7,35 @@ import { ChildSidebar } from '../components/ChildSidebar';
 import { MobileMenuButton } from '../components/MobileMenuButton';
 import { LogoutConfirmation } from '../components/LogoutConfirmation';
 import { ArrowLeft, Volume2, VolumeX, Star, Share2, Trash2, Edit, Calendar, Heart, Sparkles, Wand2 } from 'lucide-react';
+import { api } from '../services/api';
+import { formatDate, moodColor, moodEmoji, readingTime, wordCount } from '../services/journalAdapters';
 
 interface JournalDetailScreenProps {
   onBack: () => void;
   childName?: string;
+  childId?: string;
   onNavigate?: (page: string) => void;
   onLogout?: () => void;
-  entryId?: number;
+  entryId?: string;
 }
 
 export function JournalDetailScreen({ 
   onBack, 
   childName = 'Friend', 
+  childId,
   onNavigate,
   onLogout,
-  entryId = 1
+  entryId = ''
 }: JournalDetailScreenProps) {
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [selectedVoice, setSelectedVoice] = useState<string | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [isFavorite, setIsFavorite] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [entry, setEntry] = useState<any | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [actionMessage, setActionMessage] = useState('');
 
   const handleLogout = () => {
     setShowLogoutConfirm(false);
@@ -44,194 +52,47 @@ export function JournalDetailScreen({
     }
   };
 
-  // All memories data
-  const allMemories = [
-    {
-      id: 1,
-      title: "My Amazing Day at the Park",
-      date: "December 1, 2025",
-      time: "4:30 PM",
-      mood: "happy",
-      moodEmoji: "😊",
-      tag: "Friends",
-      content: `Today was so much fun! I went to the park with my friends Emma and Lucas. We played on the swings and went really high - I felt like I was flying!
+  useEffect(() => {
+    if (!entryId) {
+      setEntry(null);
+      return;
+    }
 
-Then we found a cool spot under this big tree and had a picnic. Mom packed my favorite sandwiches and some cookies. We shared everything and talked about our favorite superheroes.
+    let isMounted = true;
+    setIsLoading(true);
+    setError('');
 
-Lucas brought his new kite and we took turns flying it. The kite was shaped like a dragon and it looked so cool against the blue sky! When it was my turn, the wind picked up and the kite went super high. I felt so proud!
+    api.journals
+      .get(entryId)
+      .then(({ journal }) => {
+        const mood = journal.moodStatus && journal.moodStatus !== 'pending' ? journal.moodStatus : 'thoughtful';
+        if (isMounted) {
+          setEntry({
+            id: journal.id,
+            title: journal.title,
+            content: journal.content,
+            mood,
+            moodEmoji: moodEmoji(mood),
+            date: formatDate(journal.createdAt),
+            time: new Intl.DateTimeFormat(undefined, { hour: 'numeric', minute: '2-digit' }).format(new Date(journal.createdAt)),
+            tag: journal.inputType === 'voice' ? 'Voice' : 'Journal',
+            color: moodColor(mood),
+            wordCount: wordCount(journal.content),
+            readingTime: readingTime(journal.content),
+          });
+        }
+      })
+      .catch((err) => {
+        if (isMounted) setError(err instanceof Error ? err.message : 'Could not load this journal entry.');
+      })
+      .finally(() => {
+        if (isMounted) setIsLoading(false);
+      });
 
-After that, we played hide and seek. I found the best hiding spot behind the flower bushes. Emma couldn't find me for almost 10 minutes! When she finally did, we all laughed so hard.
-
-Before going home, we watched the sunset together. The sky turned all orange and pink - it was beautiful. We promised to come back to the park next weekend.
-
-I love days like this with my friends. They make me so happy! 💙`,
-      color: "child-yellow",
-      wordCount: 178,
-      readingTime: "2 min"
-    },
-    {
-      id: 2,
-      title: "Learning About Space 🚀",
-      date: "November 30, 2025",
-      time: "3:15 PM",
-      mood: "excited",
-      moodEmoji: "🤩",
-      tag: "School",
-      content: `In science class today, we learned about planets and stars. Did you know Jupiter is the biggest planet in our solar system? It's so big that 1,000 Earths could fit inside it! That's amazing!
-
-Our teacher, Ms. Johnson, showed us pictures from space telescopes. We saw galaxies that are millions of light-years away. I couldn't even imagine how far that is!
-
-We also learned about constellations. My favorite is Orion because it looks like a hunter. I'm going to look for it in the sky tonight with Dad.
-
-For homework, we have to draw our own imaginary planet. I'm going to make mine purple with two moons and rings made of candy! Wouldn't that be cool?
-
-I love learning about space. Maybe one day I'll become an astronaut and explore the stars! 🌟`,
-      color: "child-peach",
-      wordCount: 142,
-      readingTime: "1 min"
-    },
-    {
-      id: 3,
-      title: "Rainy Day Thoughts",
-      date: "November 29, 2025",
-      time: "2:00 PM",
-      mood: "calm",
-      moodEmoji: "😌",
-      tag: "Relaxation",
-      content: `It's raining outside and I'm reading my favorite book under a cozy blanket. The rain sounds are so peaceful - like nature's lullaby.
-
-I can hear the raindrops tapping on my window, making a gentle rhythm. It reminds me of a song. Sometimes I close my eyes and just listen.
-
-Mom made hot cocoa with marshmallows. It's warm and sweet, perfect for a rainy day. The steam rises from my cup and makes swirly patterns in the air.
-
-I'm reading "Charlie and the Chocolate Factory" again. Even though I've read it before, it's still magical. I imagine what it would be like to visit Willy Wonka's factory.
-
-Rainy days used to make me sad, but now I love them. They're perfect for slowing down and enjoying the quiet moments. Sometimes the best adventures happen inside your imagination. 🌧️💭`,
-      color: "child-mint",
-      wordCount: 145,
-      readingTime: "2 min"
-    },
-    {
-      id: 4,
-      title: "Birthday Party Fun! 🎉",
-      date: "November 25, 2025",
-      time: "5:45 PM",
-      mood: "joyful",
-      moodEmoji: "🥳",
-      tag: "Celebration",
-      content: `Had the best birthday party ever! All my friends came - Emma, Lucas, Sofia, and Jake. Mom decorated the whole house with balloons and streamers in my favorite colors.
-
-We played musical chairs, pin the tail on the donkey, and treasure hunt. I hid the clues all around the house and backyard. Jake found the treasure chest first - it was full of candy!
-
-The cake was amazing! It was chocolate with vanilla frosting and had a unicorn on top. When everyone sang "Happy Birthday," I felt so special and loved.
-
-My favorite present was the art set from Grandma. It has 100 different colors! I can't wait to create new drawings.
-
-We ended the day watching a movie and eating popcorn. Before everyone left, they gave me the biggest group hug. I felt so lucky to have such amazing friends! 🎂🎈`,
-      color: "child-peach",
-      wordCount: 156,
-      readingTime: "2 min"
-    },
-    {
-      id: 5,
-      title: "A Story I Wrote",
-      date: "November 24, 2025",
-      time: "7:00 PM",
-      mood: "creative",
-      moodEmoji: "✨",
-      tag: "Stories",
-      content: `Once upon a time, there was a magical dragon named Sparkle who loved to paint rainbows in the sky. Unlike other dragons who breathed fire, Sparkle breathed colors!
-
-Every morning, Sparkle would wake up and fly high above the clouds. With each breath, beautiful colors would stream from her mouth - red, orange, yellow, green, blue, indigo, and violet.
-
-One day, the world became gray and sad. All the colors had disappeared! The flowers, the sky, even the butterflies were all gray. Everyone felt gloomy.
-
-Sparkle knew she had to help. She flew all around the world, breathing her rainbow breath everywhere she went. Slowly, color returned to the world. The flowers bloomed in bright reds and yellows, the sky turned blue again, and the butterflies got their beautiful patterns back.
-
-The people were so happy! They threw a big celebration for Sparkle. From that day on, whenever people saw a rainbow, they remembered Sparkle the dragon and smiled.
-
-The End. 🌈✨
-
-I love writing stories! Maybe I'll write more about Sparkle's adventures.`,
-      color: "child-lavender",
-      wordCount: 198,
-      readingTime: "2 min"
-    },
-    {
-      id: 6,
-      title: "Family Game Night",
-      date: "November 20, 2025",
-      time: "8:30 PM",
-      mood: "loved",
-      moodEmoji: "🥰",
-      tag: "Family",
-      content: `We played board games tonight and I won three times! We played Monopoly, Uno, and Pictionary. I was on a winning streak!
-
-In Monopoly, I bought all the railroads and made everyone pay rent. Dad said I was a "real estate tycoon" - I had to ask what that meant, and he explained it's someone who's really good at buying and selling property.
-
-During Pictionary, Mom's drawings were so funny! She tried to draw a giraffe but it looked like a weird snake with legs. We all laughed so hard!
-
-Dad made his famous hot chocolate with whipped cream and chocolate chips. It's the best! He has a secret ingredient but won't tell me what it is. I think it's cinnamon.
-
-After the games, we cuddled on the couch and watched a movie together. I fell asleep halfway through, but I didn't mind. Being with my family makes me feel so safe and loved.
-
-These are my favorite nights. I wish we could do this every week! ❤️🎲`,
-      color: "child-yellow",
-      wordCount: 189,
-      readingTime: "2 min"
-    },
-    {
-      id: 7,
-      title: "My Painting Journey",
-      date: "November 18, 2025",
-      time: "4:00 PM",
-      mood: "creative",
-      moodEmoji: "🎨",
-      tag: "Art",
-      content: `Today I started a new painting. I want to create something that shows how I feel inside - happy, colorful, and full of dreams.
-
-I mixed different colors on my palette. Blue and yellow made green, red and white made pink. It's like magic how colors can blend together and create something new!
-
-I decided to paint a garden with flowers of every color. Each flower represents something I love - yellow sunflowers for happiness, red roses for love, purple lavender for calm, and orange marigolds for energy.
-
-In the center, I painted a little girl (that's me!) sitting and reading a book. Around her, butterflies and birds are flying. The sky is filled with soft clouds and a warm sun.
-
-It took me three hours, but I loved every minute. Art makes me feel free and creative. When I paint, I can express feelings that I don't have words for.
-
-Mom hung it on the refrigerator. She said it's beautiful and that I'm a real artist. That made me so proud! 🎨🖌️`,
-      color: "child-lavender",
-      wordCount: 187,
-      readingTime: "2 min"
-    },
-    {
-      id: 8,
-      title: "Quiet Morning",
-      date: "November 15, 2025",
-      time: "6:30 AM",
-      mood: "calm",
-      moodEmoji: "🌅",
-      tag: "Morning",
-      content: `Woke up early today before everyone else. The house was so quiet and peaceful. I could hear birds chirping outside my window.
-
-I went downstairs and sat by the window with my favorite stuffed bunny. The sun was just starting to rise, painting the sky in soft pinks and oranges.
-
-I made myself some cereal and ate it slowly, watching the world wake up. A squirrel ran across our backyard, and I saw Mrs. Chen walking her dog down the street.
-
-There's something special about early mornings. Everything feels fresh and new, like the world is giving us another chance to have a good day.
-
-I spent some time writing in my journal and thinking about my dreams. I dreamed I could fly last night! It felt so real.
-
-When Mom woke up, I made her breakfast in bed - toast with jam and orange juice. She was so surprised! She said it was the best way to start her day.
-
-These quiet moments make me feel grateful for everything I have. 🌅☕`,
-      color: "child-mint",
-      wordCount: 182,
-      readingTime: "2 min"
-    },
-  ];
-
-  // Find the entry that matches the entryId
-  const entry = allMemories.find(m => m.id === entryId) || allMemories[0];
+    return () => {
+      isMounted = false;
+    };
+  }, [entryId]);
 
   const voices = [
     {
@@ -295,6 +156,51 @@ These quiet moments make me feel grateful for everything I have. 🌅☕`,
     setIsPlaying(false);
     setSelectedVoice(null);
   };
+
+  const handleShareEntry = async () => {
+    const shareText = `${entry.title}\n\n${entry.content}`;
+
+    if (navigator.share) {
+      await navigator.share({ title: entry.title, text: shareText }).catch(() => undefined);
+      return;
+    }
+
+    await navigator.clipboard?.writeText(shareText);
+    setActionMessage('Entry copied so you can share it with family.');
+  };
+
+  const handleDeleteEntry = async () => {
+    await api.journals.remove(entry.id);
+    onBack();
+  };
+
+  const handleEditEntry = () => {
+    onNavigate?.('entry');
+  };
+
+  const handleCreateStory = () => {
+    onNavigate?.('story-mode');
+  };
+
+  if (isLoading || error || !entry) {
+    return (
+      <div className="min-h-screen bg-[var(--child-bg)] flex items-center justify-center p-6">
+        <Card variant="child" className="max-w-lg text-center">
+          <div className="space-y-4">
+            <h2 className="text-[#2d3748]">
+              {isLoading ? 'Loading your memory...' : error ? 'Memory unavailable' : 'Memory not found'}
+            </h2>
+            <p className="text-[#64748b]">
+              {error || 'This journal entry could not be found.'}
+            </p>
+            <Button variant="child-blue" onClick={onBack}>
+              Back to memories
+            </Button>
+          </div>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-[var(--child-bg)] flex">
@@ -488,6 +394,7 @@ These quiet moments make me feel grateful for everything I have. 🌅☕`,
                   size="medium"
                   icon={<Wand2 className="w-5 h-5" />}
                   className="w-full"
+                  onClick={handleCreateStory}
                 >
                   Turn into a Story
                 </Button>
@@ -496,6 +403,7 @@ These quiet moments make me feel grateful for everything I have. 🌅☕`,
                   size="medium"
                   icon={<Share2 className="w-5 h-5" />}
                   className="w-full"
+                  onClick={handleShareEntry}
                 >
                   Share with Family
                 </Button>
@@ -504,6 +412,7 @@ These quiet moments make me feel grateful for everything I have. 🌅☕`,
                   size="medium"
                   icon={<Edit className="w-5 h-5" />}
                   className="w-full"
+                  onClick={handleEditEntry}
                 >
                   Edit Entry
                 </Button>
@@ -512,10 +421,14 @@ These quiet moments make me feel grateful for everything I have. 🌅☕`,
                   size="medium"
                   icon={<Trash2 className="w-5 h-5" />}
                   className="w-full"
+                  onClick={handleDeleteEntry}
                 >
                   Delete Entry
                 </Button>
               </div>
+              {actionMessage && (
+                <p className="text-center text-sm text-[#065f46]">{actionMessage}</p>
+              )}
             </div>
           </Card>
 
@@ -565,3 +478,4 @@ These quiet moments make me feel grateful for everything I have. 🌅☕`,
     </div>
   );
 }
+

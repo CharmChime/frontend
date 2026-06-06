@@ -6,7 +6,7 @@ import { Badge } from '../components/Badge';
 import { ArrowLeft, Edit, Trash2 } from 'lucide-react';
 
 export interface Memory {
-  id: number;
+  id: string;
   title: string;
   preview: string;
   content: string;
@@ -24,7 +24,7 @@ interface MemoryDetailScreenProps {
   memory: Memory;
   onBack: () => void;
   onEdit: (memory: Memory) => void;
-  onDelete: (memoryId: number) => void;
+  onDelete: (memoryId: string) => void;
   childName?: string;
 }
 
@@ -49,10 +49,10 @@ export function MemoryDetailScreen({
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <Button variant="secondary" size="small" onClick={() => onEdit(memory)}>
+            <Button variant="child-blue" size="small" onClick={() => onEdit(memory)}>
               <Edit className="w-4 h-4 mr-2" /> Edit
             </Button>
-            <Button variant="danger" size="small" onClick={() => onDelete(memory.id)}>
+            <Button variant="child-peach" size="small" onClick={() => onDelete(memory.id)}>
               <Trash2 className="w-4 h-4 mr-2" /> Delete
             </Button>
           </div>

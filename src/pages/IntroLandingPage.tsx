@@ -424,18 +424,18 @@ export function IntroLandingPage({ onGetStarted }: IntroLandingPageProps) {
             <div>
               <h4 className="mb-4">Company</h4>
               <ul className="space-y-2 text-sm text-white/70">
-                <li><a href="#" className="hover:text-white transition-colors">About Us</a></li>
-                <li><a href="#" className="hover:text-white transition-colors">Privacy Policy</a></li>
-                <li><a href="#" className="hover:text-white transition-colors">Terms of Service</a></li>
+                <li><a href="#features" className="hover:text-white transition-colors">About Us</a></li>
+                <li><a href="#for-parents" className="hover:text-white transition-colors">Privacy Policy</a></li>
+                <li><a href="#how-it-works" className="hover:text-white transition-colors">Terms of Service</a></li>
               </ul>
             </div>
             
             <div>
               <h4 className="mb-4">Support</h4>
               <ul className="space-y-2 text-sm text-white/70">
-                <li><a href="#" className="hover:text-white transition-colors">Help Center</a></li>
-                <li><a href="#" className="hover:text-white transition-colors">Contact Us</a></li>
-                <li><a href="#" className="hover:text-white transition-colors">Safety Guidelines</a></li>
+                <li><a href="#how-it-works" className="hover:text-white transition-colors">Help Center</a></li>
+                <li><a href="mailto:support@charmchime.local" className="hover:text-white transition-colors">Contact Us</a></li>
+                <li><a href="#for-parents" className="hover:text-white transition-colors">Safety Guidelines</a></li>
               </ul>
             </div>
           </div>

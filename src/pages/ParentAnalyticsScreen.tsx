@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { ParentSidebar } from '../components/ParentSidebar';
 import { Card } from '../components/Card';
 import { Button } from '../components/Button';
@@ -6,24 +6,50 @@ import { Badge } from '../components/Badge';
 import { BarChart as RechartsBar, Bar, LineChart, Line, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar } from 'recharts';
 import { TrendingUp, TrendingDown, Calendar, Download } from 'lucide-react';
 import { LogoutConfirmation } from '../components/LogoutConfirmation';
+import { api } from '../services/api';
 
 interface ParentAnalyticsScreenProps {
   childName: string;
+  parentId?: string;
   onNavigate: (page: string) => void;
   onLogout: () => void;
 }
 
-export function ParentAnalyticsScreen({ childName, onNavigate, onLogout }: ParentAnalyticsScreenProps) {
+export function ParentAnalyticsScreen({ childName, parentId, onNavigate, onLogout }: ParentAnalyticsScreenProps) {
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [timeRange, setTimeRange] = useState<'week' | 'month' | 'year'>('month');
+  const [analytics, setAnalytics] = useState<any | null>(null);
+
+  useEffect(() => {
+    if (!parentId) return;
+    api.dashboard.analytics(parentId).then(setAnalytics).catch(() => setAnalytics(null));
+  }, [parentId]);
 
   const handleLogout = () => {
     setShowLogoutConfirm(false);
     onLogout();
   };
 
+  const handleExportAnalytics = () => {
+    const content = JSON.stringify(
+      {
+        timeRange,
+        analytics,
+        exportedAt: new Date().toISOString(),
+      },
+      null,
+      2
+    );
+    const url = URL.createObjectURL(new Blob([content], { type: 'application/json' }));
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `analytics-${timeRange}.json`;
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
   // Mock data
-  const sentimentTrend = [
+  const sentimentTrend = analytics?.sentimentTrend?.length ? analytics.sentimentTrend : [
     { date: 'Jan 1', positive: 85, neutral: 10, negative: 5 },
     { date: 'Jan 8', positive: 78, neutral: 15, negative: 7 },
     { date: 'Jan 15', positive: 92, neutral: 5, negative: 3 },
@@ -31,7 +57,7 @@ export function ParentAnalyticsScreen({ childName, onNavigate, onLogout }: Paren
     { date: 'Jan 29', positive: 95, neutral: 3, negative: 2 },
   ];
 
-  const emotionalProfile = [
+  const emotionalProfile = analytics?.emotionalProfile?.length ? analytics.emotionalProfile : [
     { emotion: 'Happy', value: 85 },
     { emotion: 'Calm', value: 75 },
     { emotion: 'Excited', value: 70 },
@@ -40,14 +66,14 @@ export function ParentAnalyticsScreen({ childName, onNavigate, onLogout }: Paren
     { emotion: 'Confident', value: 65 },
   ];
 
-  const writingActivity = [
+  const writingActivity = analytics?.writingActivity?.weeklyActivity?.length ? analytics.writingActivity.weeklyActivity : [
     { week: 'Week 1', entries: 5, words: 450, time: 35 },
     { week: 'Week 2', entries: 7, words: 680, time: 52 },
     { week: 'Week 3', entries: 6, words: 550, time: 45 },
     { week: 'Week 4', entries: 8, words: 720, time: 58 },
   ];
 
-  const topThemes = [
+  const topThemes = analytics?.mostDiscussedThemes?.length ? analytics.mostDiscussedThemes : [
     { theme: 'School', count: 24, trend: 'up' },
     { theme: 'Friends', count: 18, trend: 'up' },
     { theme: 'Family', count: 15, trend: 'stable' },
@@ -106,7 +132,7 @@ export function ParentAnalyticsScreen({ childName, onNavigate, onLogout }: Paren
                     Year
                   </button>
                 </div>
-                <Button variant="parent-teal" size="small" icon={<Download className="w-4 h-4" />}>
+                <Button variant="parent-teal" size="small" icon={<Download className="w-4 h-4" />} onClick={handleExportAnalytics}>
                   <span className="hidden sm:inline">Export</span>
                 </Button>
               </div>

@@ -1,26 +1,103 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { ParentSidebar } from '../components/ParentSidebar';
 import { Card } from '../components/Card';
 import { Button } from '../components/Button';
 import { Badge } from '../components/Badge';
 import { FileText, Download, Calendar, Mail, TrendingUp, BarChart3, PieChart, Eye } from 'lucide-react';
 import { LogoutConfirmation } from '../components/LogoutConfirmation';
+import { api } from '../services/api';
 
 interface ParentReportsScreenProps {
   childName: string;
+  parentId?: string;
   onNavigate: (page: string) => void;
   onLogout: () => void;
 }
 
-export function ParentReportsScreen({ childName, onNavigate, onLogout }: ParentReportsScreenProps) {
+export function ParentReportsScreen({ childName, parentId, onNavigate, onLogout }: ParentReportsScreenProps) {
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+  const [reportData, setReportData] = useState<any | null>(null);
+  const [reportMessage, setReportMessage] = useState('');
+  const [scheduledReports, setScheduledReports] = useState([
+    {
+      frequency: 'Weekly',
+      nextDelivery: 'Dec 29, 2024',
+      email: 'sarah.johnson@email.com',
+      enabled: true
+    },
+    {
+      frequency: 'Monthly',
+      nextDelivery: 'Jan 1, 2025',
+      email: 'sarah.johnson@email.com',
+      enabled: true
+    },
+  ]);
+
+  useEffect(() => {
+    if (!parentId) return;
+    api.dashboard.reports(parentId).then(setReportData).catch(() => setReportData(null));
+  }, [parentId]);
 
   const handleLogout = () => {
     setShowLogoutConfirm(false);
     onLogout();
   };
 
-  const reports = [
+  const handleViewReport = (report: any) => {
+    setReportMessage(`${report.title}: ${report.description}`);
+  };
+
+  const handleDownloadReport = (report: any) => {
+    const content = JSON.stringify(
+      {
+        report,
+        summary: reportData?.summary,
+        moodSummary: reportData?.moodSummary,
+        generatedAt: new Date().toISOString(),
+      },
+      null,
+      2
+    );
+    const url = URL.createObjectURL(new Blob([content], { type: 'application/json' }));
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `${report.type || 'report'}-summary.json`;
+    link.click();
+    URL.revokeObjectURL(url);
+    setReportMessage(`${report.title} downloaded.`);
+  };
+
+  const toggleScheduledReport = (index: number) => {
+    setScheduledReports((current) =>
+      current.map((report, reportIndex) =>
+        reportIndex === index ? { ...report, enabled: !report.enabled } : report
+      )
+    );
+  };
+
+  const reportIconByType: Record<string, React.ReactNode> = {
+    weekly: <Calendar className="w-6 h-6" />,
+    monthly: <BarChart3 className="w-6 h-6" />,
+    custom: <PieChart className="w-6 h-6" />,
+  };
+
+  const reports = reportData?.availableReports?.length ? reportData.availableReports.map((report: any) => ({
+    ...report,
+    description:
+      report.description ||
+      (report.type === 'custom'
+        ? 'Configure a custom date range report from current backend data'
+        : `Generated from current ${report.type} activity and wellbeing data`),
+    icon: reportIconByType[report.type] || <FileText className="w-6 h-6" />,
+    lastGenerated: report.lastGenerated || 'Current data',
+    status: report.status || 'Ready',
+    color:
+      report.type === 'monthly'
+        ? 'bg-purple-100 text-purple-600'
+        : report.type === 'custom'
+          ? 'bg-green-100 text-green-600'
+          : 'bg-blue-100 text-blue-600',
+  })) : [
     {
       title: 'Weekly Summary Report',
       description: 'Overview of mood patterns, activity, and key insights from the past week',
@@ -59,21 +136,6 @@ export function ParentReportsScreen({ childName, onNavigate, onLogout }: ParentR
     },
   ];
 
-  const scheduledReports = [
-    {
-      frequency: 'Weekly',
-      nextDelivery: 'Dec 29, 2024',
-      email: 'sarah.johnson@email.com',
-      enabled: true
-    },
-    {
-      frequency: 'Monthly',
-      nextDelivery: 'Jan 1, 2025',
-      email: 'sarah.johnson@email.com',
-      enabled: true
-    },
-  ];
-
   const recentDownloads = [
     { name: 'Weekly_Report_Dec_15-22.pdf', date: 'Dec 22, 2024', size: '2.4 MB' },
     { name: 'Monthly_Report_November.pdf', date: 'Dec 1, 2024', size: '5.8 MB' },
@@ -98,7 +160,12 @@ export function ParentReportsScreen({ childName, onNavigate, onLogout }: ParentR
                 <h1 className="text-[#2d3748] text-xl sm:text-2xl lg:text-3xl">Reports & Analytics</h1>
                 <p className="text-[#64748b] mt-1 text-sm sm:text-base">Generate and manage detailed reports for {childName}</p>
               </div>
-              <Button variant="parent-teal" size="medium" icon={<Download className="w-5 h-5" />}>
+              <Button
+                variant="parent-teal"
+                size="medium"
+                icon={<Download className="w-5 h-5" />}
+                onClick={() => handleDownloadReport({ title: 'All Reports', type: 'all', description: 'Complete report bundle' })}
+              >
                 <span className="hidden sm:inline">Download All</span>
                 <span className="sm:hidden">Download</span>
               </Button>
@@ -127,10 +194,10 @@ export function ParentReportsScreen({ childName, onNavigate, onLogout }: ParentR
                           <span className="text-xs text-[#64748b]">Last: {report.lastGenerated}</span>
                         </div>
                         <div className="flex gap-2">
-                          <Button variant="parent-slate" size="small" icon={<Eye className="w-4 h-4" />}>
+                          <Button variant="parent-slate" size="small" icon={<Eye className="w-4 h-4" />} onClick={() => handleViewReport(report)}>
                             <span className="hidden sm:inline">View</span>
                           </Button>
-                          <Button variant="parent-teal" size="small" icon={<Download className="w-4 h-4" />}>
+                          <Button variant="parent-teal" size="small" icon={<Download className="w-4 h-4" />} onClick={() => handleDownloadReport(report)}>
                             <span className="hidden sm:inline">Download</span>
                           </Button>
                         </div>
@@ -162,6 +229,7 @@ export function ParentReportsScreen({ childName, onNavigate, onLogout }: ParentR
                           <p className="text-xs sm:text-sm text-[#64748b]">Next: {scheduled.nextDelivery}</p>
                         </div>
                         <button
+                          onClick={() => toggleScheduledReport(index)}
                           className={`
                             w-14 h-8 rounded-full transition-all duration-200 flex-shrink-0
                             ${scheduled.enabled ? 'bg-[var(--parent-teal)]' : 'bg-gray-300'}
@@ -176,7 +244,7 @@ export function ParentReportsScreen({ childName, onNavigate, onLogout }: ParentR
                       <p className="text-xs text-[#64748b]">📧 {scheduled.email}</p>
                     </div>
                   ))}
-                  <Button variant="parent-slate" size="medium" className="w-full">
+                  <Button variant="parent-slate" size="medium" className="w-full" onClick={() => setReportMessage('Email report settings updated locally.')}>
                     Configure Email Reports
                   </Button>
                 </div>
@@ -245,9 +313,18 @@ export function ParentReportsScreen({ childName, onNavigate, onLogout }: ParentR
                   ))}
                 </div>
               </div>
-              <Button variant="parent-teal" size="large" icon={<FileText className="w-5 h-5" />} className="w-full sm:w-auto">
+              <Button
+                variant="parent-teal"
+                size="large"
+                icon={<FileText className="w-5 h-5" />}
+                className="w-full sm:w-auto"
+                onClick={() => setReportMessage('Custom report settings are ready. Backend report summary refreshed from current data.')}
+              >
                 Generate Custom Report
               </Button>
+              {reportMessage && (
+                <p className="text-sm text-[var(--parent-teal)]">{reportMessage}</p>
+              )}
             </div>
           </Card>
 

@@ -7,16 +7,18 @@ import { ChildSidebar } from '../components/ChildSidebar';
 import { MobileMenuButton } from '../components/MobileMenuButton';
 import { LogoutConfirmation } from '../components/LogoutConfirmation';
 import { ArrowLeft, Smile, Meh, Frown, Heart, Star, BookOpen, Save, Sparkles, Mic, MicOff, Bold, Italic, Underline, Type, AlignLeft, AlignCenter, AlignRight } from 'lucide-react';
+import { api } from '../services/api';
 
 interface JournalEntryScreenProps {
   onBack: () => void;
   onSave?: () => void;
   childName?: string;
+  childId?: string;
   onNavigate?: (page: string) => void;
   onLogout?: () => void;
 }
 
-export function JournalEntryScreen({ onBack, onSave, childName = 'Friend', onNavigate, onLogout }: JournalEntryScreenProps) {
+export function JournalEntryScreen({ onBack, onSave, childName = 'Friend', childId, onNavigate, onLogout }: JournalEntryScreenProps) {
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
   const [selectedMood, setSelectedMood] = useState('');
@@ -26,6 +28,8 @@ export function JournalEntryScreen({ onBack, onSave, childName = 'Friend', onNav
   const [isRecording, setIsRecording] = useState(false);
   const [fontSize, setFontSize] = useState('16');
   const [textAlign, setTextAlign] = useState('left');
+  const [isSaving, setIsSaving] = useState(false);
+  const [error, setError] = useState('');
   const textareaRef = React.useRef<HTMLTextAreaElement>(null);
 
   const handleLogout = () => {
@@ -68,6 +72,38 @@ export function JournalEntryScreen({ onBack, onSave, childName = 'Friend', onNav
 
     const newContent = content.substring(0, start) + formattedText + content.substring(end);
     setContent(newContent);
+  };
+
+  const handleSave = async () => {
+    setError('');
+
+    if (!childId) {
+      setError('Please log in as a child before saving an entry.');
+      return;
+    }
+
+    if (!content.trim()) {
+      setError('Write a little something before saving.');
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      const data = await api.journals.create({
+        childId,
+        title: title.trim() || undefined,
+        content,
+        inputType: isRecording ? 'voice' : 'text',
+        source: isRecording ? 'speech-to-text' : 'manual',
+      });
+
+      await api.mood.analyze(data.journal.id).catch(() => undefined);
+      onSave?.();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not save this entry.');
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const aiPrompts = [
@@ -114,11 +150,12 @@ export function JournalEntryScreen({ onBack, onSave, childName = 'Friend', onNav
               <Button 
                 variant="child-yellow" 
                 icon={<Save className="w-5 h-5" />}
-                onClick={() => onSave?.()}
+                onClick={handleSave}
                 size="medium"
                 className="hidden sm:flex"
+                disabled={isSaving}
               >
-                Save Entry
+                {isSaving ? 'Saving...' : 'Save Entry'}
               </Button>
             </div>
           </div>
@@ -277,11 +314,22 @@ export function JournalEntryScreen({ onBack, onSave, childName = 'Friend', onNav
                   <p className="text-[#4a5568] text-sm sm:text-base">
                     That sounds wonderful! I can sense you're feeling {selectedMood || 'thoughtful'} today. Would you like me to help turn this into a creative story?
                   </p>
-                  <Button variant="child-mint" size="small" icon={<Sparkles className="w-4 h-4" fill="currentColor" />}>
+                  <Button
+                    variant="child-mint"
+                    size="small"
+                    icon={<Sparkles className="w-4 h-4" fill="currentColor" />}
+                    onClick={() => onNavigate?.('story-mode')}
+                  >
                     Create Story
                   </Button>
                 </div>
               </div>
+            </Card>
+          )}
+
+          {error && (
+            <Card variant="child" className="border-2 border-red-200 bg-red-50">
+              <p className="text-center text-sm text-red-700">{error}</p>
             </Card>
           )}
 
@@ -291,10 +339,11 @@ export function JournalEntryScreen({ onBack, onSave, childName = 'Friend', onNav
               variant="child-yellow" 
               size="large"
               icon={<Save className="w-5 h-5" />}
-              onClick={() => onSave?.()}
+              onClick={handleSave}
               className="w-full"
+              disabled={isSaving}
             >
-              Save My Entry
+              {isSaving ? 'Saving...' : 'Save My Entry'}
             </Button>
           </div>
 
@@ -304,10 +353,11 @@ export function JournalEntryScreen({ onBack, onSave, childName = 'Friend', onNav
               variant="child-yellow" 
               size="large"
               icon={<Save className="w-5 h-5" />}
-              onClick={() => onSave?.()}
+              onClick={handleSave}
               className="w-full"
+              disabled={isSaving}
             >
-              Save My Entry ✨
+              {isSaving ? 'Saving...' : 'Save My Entry ✨'}
             </Button>
           </div>
         </div>

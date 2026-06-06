@@ -2,11 +2,12 @@ import React from 'react';
 
 interface ButtonProps {
   children: React.ReactNode;
-  variant?: 'child-blue' | 'child-yellow' | 'child-mint' | 'child-peach' | 'child-lavender' | 'parent-teal' | 'parent-slate';
+  variant?: 'child-blue' | 'child-yellow' | 'child-mint' | 'child-peach' | 'child-lavender' | 'child-slate' | 'parent-teal' | 'parent-slate';
   size?: 'small' | 'medium' | 'large';
-  onClick?: () => void;
+  onClick?: React.MouseEventHandler<HTMLButtonElement>;
   icon?: React.ReactNode;
   className?: string;
+  disabled?: boolean;
 }
 
 export function Button({ 
@@ -15,7 +16,8 @@ export function Button({
   size = 'medium', 
   onClick, 
   icon,
-  className = '' 
+  className = '',
+  disabled = false
 }: ButtonProps) {
   const variantClasses = {
     'child-blue': 'bg-[#7ab8e8] hover:bg-[#5a9fd4] text-[#1a365d]',
@@ -23,6 +25,7 @@ export function Button({
     'child-mint': 'bg-[#8ce8b5] hover:bg-[#6dd89b] text-[#065f46]',
     'child-peach': 'bg-[#ffbfa8] hover:bg-[#ff9f7f] text-[#7c2d12]',
     'child-lavender': 'bg-[#d1bff0] hover:bg-[#b8a0e0] text-[#5b21b6]',
+    'child-slate': 'bg-[#e2e8f0] hover:bg-[#cbd5e1] text-[#334155]',
     'parent-teal': 'bg-[#237e8f] hover:bg-[#1a5f6d] text-white',
     'parent-slate': 'bg-[#334155] hover:bg-[#1e293b] text-white',
   };
@@ -36,6 +39,7 @@ export function Button({
   return (
     <button
       onClick={onClick}
+      disabled={disabled}
       className={`
         inline-flex items-center justify-center
         rounded-full
@@ -44,6 +48,7 @@ export function Button({
         hover:shadow-[0_6px_20px_rgba(0,0,0,0.12)]
         hover:scale-105
         active:scale-100
+        disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:scale-100
         ${variantClasses[variant]}
         ${sizeClasses[size]}
         ${className}

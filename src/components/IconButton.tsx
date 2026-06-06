@@ -4,7 +4,7 @@ interface IconButtonProps {
   children: React.ReactNode;
   variant?: 'child-blue' | 'child-yellow' | 'child-mint' | 'child-peach' | 'child-lavender' | 'parent-teal' | 'parent-slate';
   size?: 'small' | 'medium' | 'large';
-  onClick?: () => void;
+  onClick?: React.MouseEventHandler<HTMLButtonElement>;
   className?: string;
 }
 

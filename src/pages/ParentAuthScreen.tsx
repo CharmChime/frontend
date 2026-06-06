@@ -6,8 +6,8 @@ import { Shield, Lock, Mail, User, ArrowLeft, Activity } from 'lucide-react';
 import logo from '../assets/35160e99e546074153c34366a831aa0e30d421e6.png';
 
 interface ParentAuthScreenProps {
-  onLogin: (email: string, password: string) => void;
-  onRegister: (name: string, email: string, password: string) => void;
+  onLogin: (email: string, password: string) => Promise<void>;
+  onRegister: (name: string, email: string, password: string) => Promise<void>;
   onBack: () => void;
 }
 
@@ -17,14 +17,28 @@ export function ParentAuthScreen({ onLogin, onRegister, onBack }: ParentAuthScre
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [error, setError] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const handleSubmit = () => {
-    if (isLogin) {
-      onLogin(email, password);
-    } else if (password === confirmPassword) {
-      onRegister(name, email, password);
-    } else {
-      alert('Passwords do not match!');
+  const handleSubmit = async () => {
+    setError('');
+
+    if (!isLogin && password !== confirmPassword) {
+      setError('Passwords do not match.');
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      if (isLogin) {
+        await onLogin(email, password);
+      } else {
+        await onRegister(name, email, password);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not sign you in. Please try again.');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -181,9 +195,13 @@ export function ParentAuthScreen({ onLogin, onRegister, onBack }: ParentAuthScre
                     <input type="checkbox" className="rounded" />
                     <span>Remember me</span>
                   </label>
-                  <a href="#" className="text-[var(--parent-teal)] hover:text-[var(--parent-teal-dark)]">
+                  <button
+                    type="button"
+                    onClick={() => setError('Password reset is not available yet. Please contact support.')}
+                    className="text-[var(--parent-teal)] hover:text-[var(--parent-teal-dark)]"
+                  >
                     Forgot password?
-                  </a>
+                  </button>
                 </div>
               )}
 
@@ -193,10 +211,17 @@ export function ParentAuthScreen({ onLogin, onRegister, onBack }: ParentAuthScre
                 onClick={handleSubmit}
                 icon={<Shield className="w-5 h-5" />}
                 className="w-full"
+                disabled={isSubmitting}
               >
-                {isLogin ? 'Access Dashboard' : 'Create Account'}
+                {isSubmitting ? 'Please wait...' : isLogin ? 'Access Dashboard' : 'Create Account'}
               </Button>
             </div>
+
+            {error && (
+              <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-center text-sm text-red-700">
+                {error}
+              </div>
+            )}
 
             {!isLogin && (
               <p className="text-xs text-[#94a3b8] text-center">

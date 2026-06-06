@@ -17,6 +17,11 @@ export function ParentSettingsScreen({ onBack }: ParentSettingsScreenProps) {
   const [selectedColorTheme, setSelectedColorTheme] = useState('Teal');
   const [moodInsights, setMoodInsights] = useState(true);
   const [activityNotifications, setActivityNotifications] = useState(true);
+  const [settingsMessage, setSettingsMessage] = useState('');
+
+  const showSettingsMessage = (message: string) => {
+    setSettingsMessage(message);
+  };
 
   // Apply theme changes to document
   const handleThemeChange = (newTheme: 'light' | 'dark') => {
@@ -92,11 +97,11 @@ export function ParentSettingsScreen({ onBack }: ParentSettingsScreenProps) {
                       defaultValue="sarah.johnson@email.com"
                       className="flex-1 px-4 py-3 bg-gray-50 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[var(--parent-teal)] text-[#2d3748]"
                     />
-                    <Button variant="parent-teal" size="small" className="hidden sm:flex flex-shrink-0">
+                    <Button variant="parent-teal" size="small" className="hidden sm:flex flex-shrink-0" onClick={() => showSettingsMessage('Verification email queued.')}>
                       Verify
                     </Button>
                   </div>
-                  <Button variant="parent-teal" size="small" className="mt-2 sm:hidden w-full">
+                  <Button variant="parent-teal" size="small" className="mt-2 sm:hidden w-full" onClick={() => showSettingsMessage('Verification email queued.')}>
                     Verify Email
                   </Button>
                 </div>
@@ -124,10 +129,10 @@ export function ParentSettingsScreen({ onBack }: ParentSettingsScreenProps) {
               </div>
 
               <div className="space-y-3">
-                <Button variant="parent-slate" size="medium" className="w-full justify-start" icon={<Lock className="w-5 h-5" />}>
+                <Button variant="parent-slate" size="medium" className="w-full justify-start" icon={<Lock className="w-5 h-5" />} onClick={() => showSettingsMessage('Password change will be available after password reset API is added.')}>
                   Change Password
                 </Button>
-                <Button variant="parent-slate" size="medium" className="w-full justify-start" icon={<Shield className="w-5 h-5" />}>
+                <Button variant="parent-slate" size="medium" className="w-full justify-start" icon={<Shield className="w-5 h-5" />} onClick={() => showSettingsMessage('Two-factor setup will be available after security API is added.')}>
                   Enable Two-Factor Authentication
                 </Button>
                 <div className="p-3 sm:p-4 bg-blue-50 rounded-xl">
@@ -166,12 +171,12 @@ export function ParentSettingsScreen({ onBack }: ParentSettingsScreenProps) {
                       <p className="text-xs sm:text-sm text-[#64748b]">Age 10 · Active</p>
                     </div>
                   </div>
-                  <Button variant="parent-slate" size="small" className="w-full sm:w-auto">
+                  <Button variant="parent-slate" size="small" className="w-full sm:w-auto" onClick={() => showSettingsMessage('Child account management opens from the parent dashboard children data.')}>
                     Manage
                   </Button>
                 </div>
 
-                <Button variant="parent-teal" size="medium" className="w-full" icon={<Users className="w-5 h-5" />}>
+                <Button variant="parent-teal" size="medium" className="w-full" icon={<Users className="w-5 h-5" />} onClick={() => showSettingsMessage('Add-child flow needs a backend parent-child linking endpoint.')}>
                   Add Another Child
                 </Button>
               </div>
@@ -325,10 +330,10 @@ export function ParentSettingsScreen({ onBack }: ParentSettingsScreenProps) {
                   </div>
                 </div>
                 <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
-                  <Button variant="parent-slate" size="medium" className="flex-1">
+                  <Button variant="parent-slate" size="medium" className="flex-1" onClick={() => showSettingsMessage('Subscription management is not connected to billing yet.')}>
                     Manage Subscription
                   </Button>
-                  <Button variant="parent-slate" size="medium" className="flex-1">
+                  <Button variant="parent-slate" size="medium" className="flex-1" onClick={() => showSettingsMessage('Billing history is not connected to billing yet.')}>
                     View Billing
                   </Button>
                 </div>
@@ -458,10 +463,16 @@ export function ParentSettingsScreen({ onBack }: ParentSettingsScreenProps) {
               variant="parent-teal" 
               size="large" 
               className="w-full sm:w-auto"
+              onClick={() => showSettingsMessage('Settings saved locally for this session.')}
             >
               Save Changes
             </Button>
           </div>
+          {settingsMessage && (
+            <Card variant="parent" className="border border-[var(--parent-teal)]/20 bg-[var(--parent-teal)]/10">
+              <p className="text-sm text-[var(--parent-teal-dark)]">{settingsMessage}</p>
+            </Card>
+          )}
         </div>
       </main>
     </div>

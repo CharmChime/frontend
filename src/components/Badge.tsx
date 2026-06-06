@@ -2,7 +2,7 @@ import React from 'react';
 
 interface BadgeProps {
   children: React.ReactNode;
-  variant?: 'child-blue' | 'child-yellow' | 'child-mint' | 'child-peach' | 'child-lavender' | 'parent-teal' | 'parent-slate';
+  variant?: 'child-blue' | 'child-yellow' | 'child-mint' | 'child-peach' | 'child-lavender' | 'child-slate' | 'parent-teal' | 'parent-slate';
   icon?: React.ReactNode;
   className?: string;
 }
@@ -19,6 +19,7 @@ export function Badge({
     'child-mint': 'bg-[var(--child-mint)] text-[#065f46]',
     'child-peach': 'bg-[var(--child-peach)] text-[#7c2d12]',
     'child-lavender': 'bg-[var(--child-lavender)] text-[#5b21b6]',
+    'child-slate': 'bg-slate-100 text-slate-700',
     'parent-teal': 'bg-[var(--parent-teal)]/10 text-[var(--parent-teal-dark)] border border-[var(--parent-teal)]/20',
     'parent-slate': 'bg-[var(--parent-slate)]/10 text-[var(--parent-slate)] border border-[var(--parent-slate)]/20',
   };

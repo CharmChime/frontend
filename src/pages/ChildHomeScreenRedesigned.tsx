@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Card } from '../components/Card';
 import { Button } from '../components/Button';
 import { Badge } from '../components/Badge';
@@ -7,9 +7,12 @@ import { ChildSidebar } from '../components/ChildSidebar';
 import { MobileMenuButton } from '../components/MobileMenuButton';
 import { Sparkles, PenLine, BookOpen, Settings, LogOut, Calendar, Trophy, Home, Wand2, Smile, Star, Heart } from 'lucide-react';
 import logo from '../assets/35160e99e546074153c34366a831aa0e30d421e6.png';
+import { api, type Journal } from '../services/api';
+import { formatShortDate } from '../services/journalAdapters';
 
 interface ChildHomeScreenRedesignedProps {
   childName: string;
+  childId?: string;
   onNewEntry: () => void;
   onViewMemories: () => void;
   onStoryMode: () => void;
@@ -21,6 +24,7 @@ interface ChildHomeScreenRedesignedProps {
 
 export function ChildHomeScreenRedesigned({ 
   childName, 
+  childId,
   onNewEntry, 
   onViewMemories, 
   onStoryMode,
@@ -32,6 +36,7 @@ export function ChildHomeScreenRedesigned({
   const [activeTab, setActiveTab] = useState('home');
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [recentEntries, setRecentEntries] = useState<Journal[]>([]);
 
   const handleLogout = () => {
     setShowLogoutConfirm(false);
@@ -66,11 +71,17 @@ export function ChildHomeScreenRedesigned({
     }
   };
 
-  const recentEntries = [
-    { id: 1, title: "My Amazing Day at the Park", mood: "happy", date: "Today" },
-    { id: 2, title: "Learning About Space", mood: "excited", date: "Yesterday" },
-    { id: 3, title: "Rainy Day Thoughts", mood: "calm", date: "2 days ago" }
-  ];
+  useEffect(() => {
+    if (!childId) {
+      setRecentEntries([]);
+      return;
+    }
+
+    api.journals
+      .list({ childId })
+      .then((data) => setRecentEntries(data.journals.slice(0, 3)))
+      .catch(() => setRecentEntries([]));
+  }, [childId]);
 
   const getMoodIcon = (mood: string) => {
     switch(mood) {
@@ -282,24 +293,35 @@ export function ChildHomeScreenRedesigned({
             <div className="lg:col-span-2 space-y-4">
               <h3 className="text-[#2d3748]">Recent Memories ✨</h3>
               <div className="space-y-3">
-                {recentEntries.map(entry => (
+                {recentEntries.map(entry => {
+                  const mood = entry.moodStatus && entry.moodStatus !== 'pending' ? entry.moodStatus : 'thoughtful';
+
+                  return (
                   <Card key={entry.id} variant="child" className="cursor-pointer hover:shadow-[0_8px_24px_rgba(0,0,0,0.1)] transition-shadow">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-4 flex-1">
-                        <Badge variant={getMoodColor(entry.mood) as any} icon={getMoodIcon(entry.mood)}>
-                          {entry.mood}
+                        <Badge variant={getMoodColor(mood) as any} icon={getMoodIcon(mood)}>
+                          {mood}
                         </Badge>
                         <div className="flex-1 min-w-0">
                           <h4 className="text-[#2d3748] truncate">{entry.title}</h4>
-                          <p className="text-sm text-[#64748b]">{entry.date}</p>
+                          <p className="text-sm text-[#64748b]">{formatShortDate(entry.createdAt)}</p>
                         </div>
                       </div>
-                      <Button variant="child-blue" size="small">
+                      <Button variant="child-blue" size="small" onClick={onViewMemories}>
                         Read
                       </Button>
                     </div>
                   </Card>
-                ))}
+                  );
+                })}
+                {recentEntries.length === 0 && (
+                  <Card variant="child">
+                    <p className="text-center text-sm text-[#64748b]">
+                      No memories yet. Your first saved journal will appear here.
+                    </p>
+                  </Card>
+                )}
               </div>
             </div>
 

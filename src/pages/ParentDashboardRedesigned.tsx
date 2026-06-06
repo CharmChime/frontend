@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { Card } from "../components/Card";
 import { Button } from "../components/Button";
 import { Badge } from "../components/Badge";
@@ -35,9 +35,11 @@ import {
   ResponsiveContainer,
 } from "recharts";
 import logo from "../assets/35160e99e546074153c34366a831aa0e30d421e6.png";
+import { api } from "../services/api";
 
 interface ParentDashboardRedesignedProps {
   childName: string;
+  parentId?: string;
   onLogout: () => void;
   onSettings?: () => void;
   onNavigate?: (page: string) => void;
@@ -45,6 +47,7 @@ interface ParentDashboardRedesignedProps {
 
 export function ParentDashboardRedesigned({
   childName,
+  parentId,
   onLogout,
   onSettings,
   onNavigate,
@@ -52,6 +55,15 @@ export function ParentDashboardRedesigned({
   const [activeTab, setActiveTab] = useState("overview");
   const [showLogoutConfirm, setShowLogoutConfirm] =
     useState(false);
+  const [overview, setOverview] = useState<any | null>(null);
+  const [analytics, setAnalytics] = useState<any | null>(null);
+
+  useEffect(() => {
+    if (!parentId) return;
+
+    api.dashboard.overview(parentId).then(setOverview).catch(() => setOverview(null));
+    api.dashboard.analytics(parentId).then(setAnalytics).catch(() => setAnalytics(null));
+  }, [parentId]);
 
   const handleLogout = () => {
     setShowLogoutConfirm(false);
@@ -69,8 +81,7 @@ export function ParentDashboardRedesigned({
     }
   };
 
-  // Mock data for charts
-  const weeklyMoodData = [
+  const weeklyMoodData = analytics?.weeklyMoodPattern?.length ? analytics.weeklyMoodPattern : [
     { day: "Mon", happy: 3, calm: 1, excited: 2, sad: 0 },
     { day: "Tue", happy: 4, calm: 2, excited: 1, sad: 0 },
     { day: "Wed", happy: 2, calm: 3, excited: 2, sad: 1 },
@@ -80,7 +91,7 @@ export function ParentDashboardRedesigned({
     { day: "Sun", happy: 4, calm: 3, excited: 1, sad: 0 },
   ];
 
-  const moodDistribution = [
+  const moodDistribution = overview?.moodSummary?.data?.length ? overview.moodSummary.data : [
     { name: "Happy", value: 45, color: "#ffe8a3" },
     { name: "Calm", value: 25, color: "#b8f4d3" },
     { name: "Excited", value: 20, color: "#ffd4c4" },
@@ -88,7 +99,7 @@ export function ParentDashboardRedesigned({
     { name: "Sad", value: 3, color: "#cbd5e1" },
   ];
 
-  const activityTrend = [
+  const activityTrend = analytics?.writingActivity?.weeklyActivity?.length ? analytics.writingActivity.weeklyActivity : [
     { week: "Week 1", entries: 5 },
     { week: "Week 2", entries: 7 },
     { week: "Week 3", entries: 6 },

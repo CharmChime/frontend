@@ -1,25 +1,50 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { ParentSidebar } from '../components/ParentSidebar';
 import { Card } from '../components/Card';
 import { Badge } from '../components/Badge';
 import { Brain, Sparkles, TrendingUp, AlertCircle, CheckCircle, Lightbulb, Heart, MessageCircle } from 'lucide-react';
 import { LogoutConfirmation } from '../components/LogoutConfirmation';
+import { api } from '../services/api';
 
 interface ParentInsightsScreenProps {
   childName: string;
+  parentId?: string;
   onNavigate: (page: string) => void;
   onLogout: () => void;
 }
 
-export function ParentInsightsScreen({ childName, onNavigate, onLogout }: ParentInsightsScreenProps) {
+export function ParentInsightsScreen({ childName, parentId, onNavigate, onLogout }: ParentInsightsScreenProps) {
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+  const [insightData, setInsightData] = useState<any | null>(null);
+
+  useEffect(() => {
+    if (!parentId) return;
+    api.dashboard.insights(parentId).then(setInsightData).catch(() => setInsightData(null));
+  }, [parentId]);
 
   const handleLogout = () => {
     setShowLogoutConfirm(false);
     onLogout();
   };
 
-  const insights = [
+  const iconByInsightType: Record<string, React.ReactNode> = {
+    mood: <Heart className="w-6 h-6" />,
+    activity: <TrendingUp className="w-6 h-6" />,
+    positive: <Heart className="w-6 h-6" />,
+    attention: <AlertCircle className="w-6 h-6" />,
+    opportunity: <Lightbulb className="w-6 h-6" />,
+  };
+
+  const insights = insightData?.keyInsights?.length ? insightData.keyInsights.map((insight: any) => ({
+    ...insight,
+    type: insight.type === 'mood' ? 'positive' : insight.type,
+    icon: insight.icon || iconByInsightType[insight.type] || <MessageCircle className="w-6 h-6" />,
+    confidence:
+      typeof insight.confidence === 'number'
+        ? Math.round(insight.confidence <= 1 ? insight.confidence * 100 : insight.confidence)
+        : 0,
+    date: insight.date || 'Current',
+  })) : [
     {
       type: 'positive',
       icon: <Heart className="w-6 h-6" />,
@@ -54,7 +79,10 @@ export function ParentInsightsScreen({ childName, onNavigate, onLogout }: Parent
     },
   ];
 
-  const recommendations = [
+  const recommendations = insightData?.recommendations?.length ? insightData.recommendations.map((item: any) => ({
+    ...item,
+    icon: item.icon || <CheckCircle className="w-5 h-5" />,
+  })) : [
     {
       category: 'Activity',
       suggestion: 'Art & Creativity Workshop',
@@ -81,7 +109,7 @@ export function ParentInsightsScreen({ childName, onNavigate, onLogout }: Parent
     },
   ];
 
-  const emotionalTrends = [
+  const emotionalTrends = insightData?.emotionalTrends?.data?.length ? insightData.emotionalTrends.data : [
     { mood: 'Happy', percentage: 65, change: '+5%', trend: 'up' },
     { mood: 'Excited', percentage: 20, change: '+3%', trend: 'up' },
     { mood: 'Calm', percentage: 10, change: '-2%', trend: 'down' },

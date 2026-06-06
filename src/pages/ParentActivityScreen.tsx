@@ -1,26 +1,38 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { ParentSidebar } from '../components/ParentSidebar';
 import { Card } from '../components/Card';
 import { Badge } from '../components/Badge';
 import { Activity, Clock, PenLine, BookOpen, Sparkles, Filter, Search } from 'lucide-react';
 import { LogoutConfirmation } from '../components/LogoutConfirmation';
+import { api } from '../services/api';
 
 interface ParentActivityScreenProps {
   childName: string;
+  parentId?: string;
   onNavigate: (page: string) => void;
   onLogout: () => void;
 }
 
-export function ParentActivityScreen({ childName, onNavigate, onLogout }: ParentActivityScreenProps) {
+export function ParentActivityScreen({ childName, parentId, onNavigate, onLogout }: ParentActivityScreenProps) {
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [filterType, setFilterType] = useState<'all' | 'journal' | 'story' | 'achievement'>('all');
+  const [activityData, setActivityData] = useState<any | null>(null);
+
+  useEffect(() => {
+    if (!parentId) return;
+    api.dashboard.activity(parentId).then(setActivityData).catch(() => setActivityData(null));
+  }, [parentId]);
 
   const handleLogout = () => {
     setShowLogoutConfirm(false);
     onLogout();
   };
 
-  const activities = [
+  const activities = activityData?.activities?.length ? activityData.activities.map((activity: any) => ({
+    ...activity,
+    details: activity.details || activity.description,
+    time: activity.time || (activity.createdAt ? new Date(activity.createdAt).toLocaleString() : 'Recently'),
+  })) : [
     {
       type: 'journal',
       title: 'New Journal Entry: "My Amazing Day at School"',

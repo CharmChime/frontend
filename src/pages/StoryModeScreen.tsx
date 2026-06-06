@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Card } from '../components/Card';
 import { Button } from '../components/Button';
 import { IconButton } from '../components/IconButton';
@@ -7,23 +7,29 @@ import { ChildSidebar } from '../components/ChildSidebar';
 import { MobileMenuButton } from '../components/MobileMenuButton';
 import { LogoutConfirmation } from '../components/LogoutConfirmation';
 import { ArrowLeft, Wand2, Sparkles, BookOpen, Send, Volume2, Play, Pause, RotateCcw, Save, CheckCircle, RefreshCw, Star } from 'lucide-react';
+import { api, type Journal } from '../services/api';
+import { formatShortDate } from '../services/journalAdapters';
 
 interface StoryModeScreenProps {
   onBack: () => void;
   childName?: string;
+  childId?: string;
   onNavigate?: (page: string) => void;
   onLogout?: () => void;
 }
 
-export function StoryModeScreen({ onBack, childName = 'Friend', onNavigate, onLogout }: StoryModeScreenProps) {
+export function StoryModeScreen({ onBack, childName = 'Friend', childId, onNavigate, onLogout }: StoryModeScreenProps) {
   const [creationMode, setCreationMode] = useState<'journal' | 'prompt'>('prompt');
   const [selectedTheme, setSelectedTheme] = useState('');
   const [storyPrompt, setStoryPrompt] = useState('');
-  const [selectedEntries, setSelectedEntries] = useState<number[]>([]);
+  const [selectedEntries, setSelectedEntries] = useState<string[]>([]);
   const [generatedStory, setGeneratedStory] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [journalEntries, setJournalEntries] = useState<Journal[]>([]);
+  const [error, setError] = useState('');
+  const [actionMessage, setActionMessage] = useState('');
 
   const handleLogout = () => {
     setShowLogoutConfirm(false);
@@ -48,41 +54,17 @@ export function StoryModeScreen({ onBack, childName = 'Friend', onNavigate, onLo
     { id: 'space', label: 'Space', emoji: '🚀', icon: <Wand2 className="w-5 h-5" />, color: 'child-peach' },
   ];
 
-  // Mock journal entries
-  const journalEntries = [
-    {
-      id: 1,
-      title: 'My Amazing Day at School',
-      date: 'Dec 27, 2024',
-      mood: 'happy',
-      preview: 'Today was so fun! We learned about space and I made a new friend...',
-      content: 'Today was so fun! We learned about space in science class and I made a new friend named Alex. We played together at recess and built a rocket ship out of blocks.'
-    },
-    {
-      id: 2,
-      title: 'Adventure at the Park',
-      date: 'Dec 25, 2024',
-      mood: 'excited',
-      preview: 'I went to the park with my family and we saw a rainbow...',
-      content: 'I went to the park with my family and we saw a beautiful rainbow after the rain. We pretended to search for treasure and I found a shiny rock that looked like a gem!'
-    },
-    {
-      id: 3,
-      title: 'Learning About Planets',
-      date: 'Dec 23, 2024',
-      mood: 'excited',
-      preview: 'In science today we learned about all the planets. Mars is my favorite...',
-      content: 'In science today we learned about all the planets. Mars is my favorite because it\'s red and they call it the Red Planet. I want to be an astronaut when I grow up!'
-    },
-    {
-      id: 4,
-      title: 'Fun with Friends',
-      date: 'Dec 20, 2024',
-      mood: 'happy',
-      preview: 'My friends and I played a game where we were explorers...',
-      content: 'My friends and I played a game where we were explorers discovering a magical forest. We made up stories about the creatures that lived there and it was so much fun!'
-    },
-  ];
+  useEffect(() => {
+    if (!childId) {
+      setJournalEntries([]);
+      return;
+    }
+
+    api.journals
+      .list({ childId })
+      .then((data) => setJournalEntries(data.journals))
+      .catch(() => setJournalEntries([]));
+  }, [childId]);
 
   const getMoodEmoji = (mood: string) => {
     switch(mood) {
@@ -94,50 +76,78 @@ export function StoryModeScreen({ onBack, childName = 'Friend', onNavigate, onLo
     }
   };
 
-  const toggleEntrySelection = (id: number) => {
+  const toggleEntrySelection = (id: string) => {
     setSelectedEntries(prev => 
       prev.includes(id) ? prev.filter(entryId => entryId !== id) : [...prev, id]
     );
   };
 
-  const exampleStory = `Once upon a time, in a land where clouds tasted like cotton candy and rivers flowed with stardust, there lived a brave young explorer named Sam. Sam had a magical compass that always pointed toward adventure.
+  const handleGenerateStory = async () => {
+    if (!childId) {
+      setError('Please log in as a child before generating a story.');
+      return;
+    }
 
-One sunny morning, the compass began to glow with a brilliant golden light. "Today must be a special day!" Sam thought excitedly. Following the compass through the Whispering Woods, Sam discovered a hidden door in an ancient oak tree.
-
-Behind the door was a secret library filled with books that could come to life! Each book contained a different world waiting to be explored. Sam opened a book about friendly dragons, and suddenly, a small purple dragon named Sparkle flew out from the pages!
-
-"Thank you for freeing me!" Sparkle said with a warm smile. "I've been waiting for someone brave enough to read my story. Would you like to go on an adventure together?"
-
-Sam and Sparkle became the best of friends, and together they explored magical worlds, helped creatures in need, and learned that the greatest adventures are the ones we share with friends.`;
-
-  const journalBasedStory = `In a world not too different from our own, there lived a curious explorer named ${childName} who loved adventures and making new friends.
-
-One day, while exploring the neighborhood park after a gentle rain, ${childName} discovered something magical - a rainbow that seemed to touch the ground! Following its colorful path, ${childName} found a shiny stone that sparkled with all the colors of the rainbow.
-
-"This must be a magic wishing stone!" ${childName} thought excitedly. Holding it tight, ${childName} made a wish to visit the stars and planets from science class.
-
-Suddenly, the stone began to glow, and ${childName} found themselves floating upward, past the clouds and into space! There, sitting on a friendly red planet, was a new friend named Alex who had been waiting for an explorer brave enough to visit.
-
-"Welcome to Mars!" Alex said with a big smile. "I knew someone special would find the rainbow stone and come visit me. Want to explore the galaxy together?"
-
-${childName} and Alex hopped from planet to planet, discovering treasures, meeting space creatures, and having the most amazing adventure. And when it was time to go home, ${childName} realized that every day could be an adventure when you have friends and imagination!`;
-
-  const handleGenerateStory = () => {
+    setError('');
     setIsGenerating(true);
-    // Simulate AI generation
-    setTimeout(() => {
+    try {
+      let journalId = selectedEntries[0];
+
+      if (creationMode === 'prompt') {
+        const created = await api.journals.create({
+          childId,
+          title: storyPrompt.slice(0, 48),
+          content: storyPrompt,
+          inputType: 'text',
+          source: 'manual',
+        });
+        journalId = created.journal.id;
+      }
+
+      const data = await api.stories.generate({
+        journalId,
+        theme: selectedTheme,
+        length: 'short',
+      });
+
+      setGeneratedStory(data.story.content);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not generate a story.');
+    } finally {
       if (creationMode === 'journal' && selectedEntries.length > 0) {
-        setGeneratedStory(journalBasedStory);
-      } else {
-        setGeneratedStory(exampleStory);
+        setSelectedEntries((current) => current.slice(0, 1));
       }
       setIsGenerating(false);
-    }, 2000);
+    }
   };
 
   const canGenerate = creationMode === 'prompt' 
     ? selectedTheme && storyPrompt 
     : selectedTheme && selectedEntries.length > 0;
+
+  const handleReadGeneratedStory = () => {
+    if (!generatedStory) return;
+    if (!('speechSynthesis' in window)) {
+      setError('Read aloud is not supported in this browser.');
+      return;
+    }
+
+    window.speechSynthesis.cancel();
+    const utterance = new SpeechSynthesisUtterance(generatedStory);
+    utterance.rate = 0.95;
+    window.speechSynthesis.speak(utterance);
+  };
+
+  const handleSaveStory = () => {
+    setActionMessage('Story saved by the backend when it was generated.');
+  };
+
+  const handleContinueStory = () => {
+    setCreationMode('prompt');
+    setStoryPrompt(`${generatedStory}\n\nContinue this story with another magical scene.`);
+    setGeneratedStory('');
+    setActionMessage('');
+  };
 
   return (
     <div className="min-h-screen bg-[var(--child-bg)] flex">
@@ -180,7 +190,7 @@ ${childName} and Alex hopped from planet to planet, discovering treasures, meeti
                   <IconButton variant="child-blue" size="medium">
                     <Volume2 className="w-5 h-5" />
                   </IconButton>
-                  <Button variant="child-yellow" size="small" icon={<Save className="w-5 h-5" />}>
+                  <Button variant="child-yellow" size="small" icon={<Save className="w-5 h-5" />} onClick={handleSaveStory}>
                     Save Story
                   </Button>
                 </div>
@@ -324,7 +334,9 @@ ${childName} and Alex hopped from planet to planet, discovering treasures, meeti
                         {selectedEntries.includes(entry.id) ? (
                           <CheckCircle className="w-5 h-5 sm:w-6 sm:h-6 text-[#1a365d]" />
                         ) : (
-                          <span className="text-xl sm:text-2xl">{getMoodEmoji(entry.mood)}</span>
+                          <span className="text-xl sm:text-2xl">
+                            {getMoodEmoji(entry.moodStatus || 'thoughtful')}
+                          </span>
                         )}
                       </div>
                       <div className="flex-1 min-w-0">
@@ -333,15 +345,20 @@ ${childName} and Alex hopped from planet to planet, discovering treasures, meeti
                             {entry.title}
                           </h4>
                           <Badge variant={selectedEntries.includes(entry.id) ? 'child-yellow' : 'child-slate'} className="text-xs">
-                            {entry.date}
+                            {formatShortDate(entry.createdAt)}
                           </Badge>
                         </div>
                         <p className={`text-xs sm:text-sm ${selectedEntries.includes(entry.id) ? 'text-[#2d5f7e]' : 'text-[#64748b]'}`}>
-                          {entry.preview}
+                          {entry.content.slice(0, 120)}
                         </p>
                       </div>
                     </button>
                   ))}
+                  {journalEntries.length === 0 && (
+                    <p className="rounded-[1.5rem] bg-gray-50 p-4 text-center text-sm text-[#64748b]">
+                      Save a journal entry first, then it will appear here for story generation.
+                    </p>
+                  )}
                 </div>
               </div>
             </Card>
@@ -388,6 +405,13 @@ ${childName} and Alex hopped from planet to planet, discovering treasures, meeti
                   </div>
                 </div>
               </div>
+            </Card>
+          )}
+
+          {/* Generate Button */}
+          {error && (
+            <Card variant="child" className="border-2 border-red-200 bg-red-50">
+              <p className="text-center text-sm text-red-700">{error}</p>
             </Card>
           )}
 
@@ -451,19 +475,22 @@ ${childName} and Alex hopped from planet to planet, discovering treasures, meeti
 
                 {/* Story Actions */}
                 <div className="pt-4 border-t-2 border-gray-100 flex flex-wrap gap-2 sm:gap-3">
-                  <Button variant="child-blue" icon={<Volume2 className="w-5 h-5" />} size="medium">
+                  <Button variant="child-blue" icon={<Volume2 className="w-5 h-5" />} size="medium" onClick={handleReadGeneratedStory}>
                     Read Aloud
                   </Button>
-                  <Button variant="child-mint" icon={<Sparkles className="w-5 h-5" fill="currentColor" />} size="medium">
+                  <Button variant="child-mint" icon={<Sparkles className="w-5 h-5" fill="currentColor" />} size="medium" onClick={handleContinueStory}>
                     Continue Story
                   </Button>
-                  <Button variant="child-yellow" icon={<Save className="w-5 h-5" />} size="medium">
+                  <Button variant="child-yellow" icon={<Save className="w-5 h-5" />} size="medium" onClick={handleSaveStory}>
                     Save to Memories
                   </Button>
                   <Button variant="child-peach" icon={<Wand2 className="w-5 h-5" />} size="medium" onClick={() => setGeneratedStory('')}>
                     New Story
                   </Button>
                 </div>
+                {actionMessage && (
+                  <p className="text-center text-sm text-[#065f46]">{actionMessage}</p>
+                )}
               </div>
             </Card>
           )}

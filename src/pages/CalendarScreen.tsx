@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Card } from '../components/Card';
 import { Button } from '../components/Button';
 import { Badge } from '../components/Badge';
@@ -6,18 +6,21 @@ import { ChildSidebar } from '../components/ChildSidebar';
 import { MobileMenuButton } from '../components/MobileMenuButton';
 import { LogoutConfirmation } from '../components/LogoutConfirmation';
 import { ArrowLeft, ChevronLeft, ChevronRight, Smile, Heart, Star, Calendar as CalendarIcon } from 'lucide-react';
+import { api, type Journal } from '../services/api';
 
 interface CalendarScreenProps {
   onBack: () => void;
   childName?: string;
+  childId?: string;
   onNavigate?: (page: string) => void;
   onLogout?: () => void;
 }
 
-export function CalendarScreen({ onBack, childName = 'Friend', onNavigate, onLogout }: CalendarScreenProps) {
+export function CalendarScreen({ onBack, childName = 'Friend', childId, onNavigate, onLogout }: CalendarScreenProps) {
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [journals, setJournals] = useState<Journal[]>([]);
 
   const handleLogout = () => {
     setShowLogoutConfirm(false);
@@ -48,17 +51,37 @@ export function CalendarScreen({ onBack, childName = 'Friend', onNavigate, onLog
     1
   ).getDay();
 
-  // Mock journal entries for specific dates
-  const journalEntries: { [key: number]: { mood: string; title: string } } = {
-    5: { mood: 'happy', title: 'Amazing Day at School' },
-    8: { mood: 'calm', title: 'Reading Time' },
-    12: { mood: 'excited', title: 'Birthday Party!' },
-    15: { mood: 'happy', title: 'Fun at the Park' },
-    18: { mood: 'calm', title: 'Rainy Day Thoughts' },
-    22: { mood: 'excited', title: 'Science Project' },
-    25: { mood: 'happy', title: 'Family Game Night' },
-    28: { mood: 'creative', title: 'Drew a Picture' },
-  };
+  useEffect(() => {
+    if (!childId) {
+      setJournals([]);
+      return;
+    }
+
+    api.journals
+      .list({ childId })
+      .then((data) => setJournals(data.journals))
+      .catch(() => setJournals([]));
+  }, [childId]);
+
+  const journalEntries = useMemo(() => {
+    return journals.reduce<{ [key: number]: { mood: string; title: string } }>((entries, journal) => {
+      const date = new Date(journal.createdAt);
+      if (
+        date.getMonth() === currentMonth.getMonth() &&
+        date.getFullYear() === currentMonth.getFullYear()
+      ) {
+        entries[date.getDate()] = {
+          mood: journal.moodStatus && journal.moodStatus !== 'pending' ? journal.moodStatus : 'thoughtful',
+          title: journal.title,
+        };
+      }
+      return entries;
+    }, {});
+  }, [journals, currentMonth]);
+
+  const entriesThisMonth = Object.keys(journalEntries).length;
+  const totalEntries = journals.length;
+  const activeDays = new Set(journals.map((journal) => new Date(journal.createdAt).toDateString())).size;
 
   const getMoodEmoji = (mood: string) => {
     switch (mood) {
@@ -250,7 +273,7 @@ export function CalendarScreen({ onBack, childName = 'Friend', onNavigate, onLog
                 <div className="w-12 h-12 mx-auto rounded-full bg-[var(--child-blue)] flex items-center justify-center">
                   <Star className="w-6 h-6 text-[#1a365d]" fill="currentColor" />
                 </div>
-                <h3 className="text-[#2d3748] text-xl sm:text-2xl">8</h3>
+                <h3 className="text-[#2d3748] text-xl sm:text-2xl">{entriesThisMonth}</h3>
                 <p className="text-xs sm:text-sm text-[#64748b]">Entries This Month</p>
               </div>
             </Card>
@@ -260,8 +283,8 @@ export function CalendarScreen({ onBack, childName = 'Friend', onNavigate, onLog
                 <div className="w-12 h-12 mx-auto rounded-full bg-[var(--child-yellow)] flex items-center justify-center">
                   <Smile className="w-6 h-6 text-[#744210]" fill="currentColor" />
                 </div>
-                <h3 className="text-[#2d3748] text-xl sm:text-2xl">7</h3>
-                <p className="text-xs sm:text-sm text-[#64748b]">Day Streak</p>
+                <h3 className="text-[#2d3748] text-xl sm:text-2xl">{activeDays}</h3>
+                <p className="text-xs sm:text-sm text-[#64748b]">Active Days</p>
               </div>
             </Card>
 
@@ -270,7 +293,7 @@ export function CalendarScreen({ onBack, childName = 'Friend', onNavigate, onLog
                 <div className="w-12 h-12 mx-auto rounded-full bg-[var(--child-mint)] flex items-center justify-center">
                   <Heart className="w-6 h-6 text-[#065f46]" fill="currentColor" />
                 </div>
-                <h3 className="text-[#2d3748] text-xl sm:text-2xl">42</h3>
+                <h3 className="text-[#2d3748] text-xl sm:text-2xl">{totalEntries}</h3>
                 <p className="text-xs sm:text-sm text-[#64748b]">Total Entries</p>
               </div>
             </Card>

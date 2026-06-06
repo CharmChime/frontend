@@ -6,8 +6,8 @@ import { Sparkles, Heart, Star, ArrowLeft } from 'lucide-react';
 import logo from '../assets/35160e99e546074153c34366a831aa0e30d421e6.png';
 
 interface ChildAuthScreenProps {
-  onLogin: (name: string, pin: string) => void;
-  onRegister: (name: string, age: string, pin: string) => void;
+  onLogin: (name: string, pin: string) => Promise<void>;
+  onRegister: (name: string, age: string, pin: string) => Promise<void>;
   onBack: () => void;
 }
 
@@ -17,14 +17,28 @@ export function ChildAuthScreen({ onLogin, onRegister, onBack }: ChildAuthScreen
   const [age, setAge] = useState('');
   const [pin, setPin] = useState('');
   const [confirmPin, setConfirmPin] = useState('');
+  const [error, setError] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const handleSubmit = () => {
-    if (isLogin) {
-      onLogin(name, pin);
-    } else if (pin === confirmPin) {
-      onRegister(name, age, pin);
-    } else {
-      alert('PINs do not match!');
+  const handleSubmit = async () => {
+    setError('');
+
+    if (!isLogin && pin !== confirmPin) {
+      setError('PINs do not match.');
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      if (isLogin) {
+        await onLogin(name, pin);
+      } else {
+        await onRegister(name, age, pin);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not sign you in. Please try again.');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -164,10 +178,17 @@ export function ChildAuthScreen({ onLogin, onRegister, onBack }: ChildAuthScreen
                 onClick={handleSubmit}
                 icon={<Sparkles className="w-5 h-5" fill="currentColor" />}
                 className="w-full"
+                disabled={isSubmitting}
               >
-                {isLogin ? 'Start My Journey' : 'Create My Account'}
+                {isSubmitting ? 'Please wait...' : isLogin ? 'Start My Journey' : 'Create My Account'}
               </Button>
             </div>
+
+            {error && (
+              <div className="rounded-[1.5rem] border-2 border-red-200 bg-red-50 p-4 text-center text-sm text-red-700">
+                {error}
+              </div>
+            )}
 
             {!isLogin && (
               <div className="bg-[var(--child-yellow)]/20 border-2 border-[var(--child-yellow)] rounded-[1.5rem] p-4">
