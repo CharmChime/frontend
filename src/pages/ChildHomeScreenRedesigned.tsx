@@ -6,7 +6,7 @@ import { LogoutConfirmation } from '../components/LogoutConfirmation';
 import { ChildSidebar } from '../components/ChildSidebar';
 import { MobileMenuButton } from '../components/MobileMenuButton';
 import { Sparkles, PenLine, BookOpen, Settings, LogOut, Calendar, Trophy, Home, Wand2, Smile, Star, Heart } from 'lucide-react';
-import logo from '../assets/35160e99e546074153c34366a831aa0e30d421e6.png';
+const logo = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="%232d3748" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M8 14s1.5-2 4-2 4 2 4 2"/></svg>';
 import { api, type Journal, type MoodAnalysis, type Story } from '../services/api';
 import { formatShortDate } from '../services/journalAdapters';
 
