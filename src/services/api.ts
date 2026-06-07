@@ -28,10 +28,11 @@ async function request<T>(
   options: RequestInit = {},
   params?: Record<string, QueryValue>
 ): Promise<T> {
+  const isFormData = options.body instanceof FormData;
   const response = await fetch(`${API_BASE_URL}${path}${buildQuery(params)}`, {
     ...options,
     headers: {
-      "Content-Type": "application/json",
+      ...(isFormData ? {} : { "Content-Type": "application/json" }),
       ...(options.headers || {}),
     },
   });
@@ -48,6 +49,21 @@ async function request<T>(
   }
 
   return payload?.data as T;
+}
+
+async function requestAudio(path: string, body: Record<string, unknown>): Promise<Blob> {
+  const response = await fetch(`${API_BASE_URL}${path}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+
+  if (!response.ok) {
+    const payload = await response.json().catch(() => null);
+    throw new Error(payload?.message || response.statusText || "Audio request failed");
+  }
+
+  return response.blob();
 }
 
 export type Child = {
@@ -95,11 +111,14 @@ export type MoodAnalysis = {
   journalId?: string;
   childId?: string;
   mood?: string;
+  emotion?: string;
   label?: string;
   sentiment?: string;
   confidence?: number;
   emotions?: Record<string, number>;
+  allScores?: { label: string; score: number }[];
   createdAt?: string;
+  analyzedAt?: string;
 };
 
 export const api = {
@@ -159,6 +178,22 @@ export const api = {
         `/v1/mood/child/${childId}`
       ),
   },
+  voice: {
+    speechToText: (audio: Blob) => {
+      const formData = new FormData();
+      const extension = audio.type.includes("mp4") ? "mp4" : "webm";
+      formData.append("audio", audio, `journal-recording.${extension}`);
+
+      return request<{ transcript: string }>("/v1/voice/speech-to-text", {
+        method: "POST",
+        body: formData,
+      });
+    },
+    textToSpeech: (body: { text: string; voiceId?: string }) =>
+      requestAudio("/v1/voice/text-to-speech", body),
+    funVoice: (body: { text: string; voiceStyle: "normal" | "fun" | "story" }) =>
+      requestAudio("/v1/voice/fun-voice", body),
+  },
   stories: {
     list: (params: { childId?: string; journalId?: string; theme?: string; search?: string } = {}) =>
       request<{ stories: Story[]; count: number }>("/v1/stories", {}, params),
@@ -180,4 +215,3 @@ export const api = {
       request<{ children: Child[] }>(`/v1/dashboard/parent/${parentId}/children`),
   },
 };
-

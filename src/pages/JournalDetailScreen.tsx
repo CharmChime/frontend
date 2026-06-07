@@ -8,7 +8,7 @@ import { MobileMenuButton } from '../components/MobileMenuButton';
 import { LogoutConfirmation } from '../components/LogoutConfirmation';
 import { ArrowLeft, Volume2, VolumeX, Star, Share2, Trash2, Edit, Calendar, Heart, Sparkles, Wand2 } from 'lucide-react';
 import { api } from '../services/api';
-import { formatDate, moodColor, moodEmoji, readingTime, wordCount } from '../services/journalAdapters';
+import { formatDate, htmlToText, moodColor, moodEmoji, readingTime, sanitizeRichTextHtml, wordCount } from '../services/journalAdapters';
 
 interface JournalDetailScreenProps {
   onBack: () => void;
@@ -158,7 +158,7 @@ export function JournalDetailScreen({
   };
 
   const handleShareEntry = async () => {
-    const shareText = `${entry.title}\n\n${entry.content}`;
+    const shareText = `${entry.title}\n\n${htmlToText(entry.content)}`;
 
     if (navigator.share) {
       await navigator.share({ title: entry.title, text: shareText }).catch(() => undefined);
@@ -377,9 +377,10 @@ export function JournalDetailScreen({
                 <h3 className="text-[#2d3748] text-lg sm:text-xl">Your Story</h3>
               </div>
               <div className="prose prose-lg max-w-none">
-                <div className="text-[#2d3748] leading-relaxed whitespace-pre-line text-sm sm:text-base lg:text-lg">
-                  {entry.content}
-                </div>
+                <div
+                  className="journal-rich-content text-[#2d3748] leading-relaxed text-sm sm:text-base lg:text-lg"
+                  dangerouslySetInnerHTML={{ __html: sanitizeRichTextHtml(entry.content) }}
+                />
               </div>
             </div>
           </Card>

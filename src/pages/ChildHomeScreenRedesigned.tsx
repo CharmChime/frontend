@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Card } from '../components/Card';
 import { Button } from '../components/Button';
 import { Badge } from '../components/Badge';
@@ -7,7 +7,7 @@ import { ChildSidebar } from '../components/ChildSidebar';
 import { MobileMenuButton } from '../components/MobileMenuButton';
 import { Sparkles, PenLine, BookOpen, Settings, LogOut, Calendar, Trophy, Home, Wand2, Smile, Star, Heart } from 'lucide-react';
 import logo from '../assets/35160e99e546074153c34366a831aa0e30d421e6.png';
-import { api, type Journal } from '../services/api';
+import { api, type Journal, type MoodAnalysis, type Story } from '../services/api';
 import { formatShortDate } from '../services/journalAdapters';
 
 interface ChildHomeScreenRedesignedProps {
@@ -37,6 +37,9 @@ export function ChildHomeScreenRedesigned({
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [recentEntries, setRecentEntries] = useState<Journal[]>([]);
+  const [journals, setJournals] = useState<Journal[]>([]);
+  const [stories, setStories] = useState<Story[]>([]);
+  const [moodAnalyses, setMoodAnalyses] = useState<MoodAnalysis[]>([]);
 
   const handleLogout = () => {
     setShowLogoutConfirm(false);
@@ -74,14 +77,113 @@ export function ChildHomeScreenRedesigned({
   useEffect(() => {
     if (!childId) {
       setRecentEntries([]);
+      setJournals([]);
+      setStories([]);
+      setMoodAnalyses([]);
       return;
     }
 
-    api.journals
-      .list({ childId })
-      .then((data) => setRecentEntries(data.journals.slice(0, 3)))
-      .catch(() => setRecentEntries([]));
+    Promise.all([
+      api.journals.list({ childId }),
+      api.stories.list({ childId }),
+      api.mood.byChild(childId),
+    ])
+      .then(([journalData, storyData, moodData]) => {
+        const sortedJournals = [...(journalData.journals || [])].sort(
+          (first, second) => new Date(second.createdAt).getTime() - new Date(first.createdAt).getTime()
+        );
+
+        setJournals(sortedJournals);
+        setRecentEntries(sortedJournals.slice(0, 3));
+        setStories(storyData.stories || []);
+        setMoodAnalyses(moodData.moodAnalyses || moodData.moods || moodData.analyses || []);
+      })
+      .catch(() => {
+        setJournals([]);
+        setRecentEntries([]);
+        setStories([]);
+        setMoodAnalyses([]);
+      });
   }, [childId]);
+
+  const toDayKey = (value?: string) => {
+    if (!value) return '';
+
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return '';
+
+    return date.toISOString().slice(0, 10);
+  };
+
+  const journalDayKeys = useMemo(
+    () => Array.from(new Set(journals.map((journal) => toDayKey(journal.createdAt)).filter(Boolean))).sort(),
+    [journals]
+  );
+
+  const currentStreak = useMemo(() => {
+    if (!journalDayKeys.length) return 0;
+
+    let streak = 1;
+
+    for (let index = journalDayKeys.length - 1; index > 0; index -= 1) {
+      const currentDay = new Date(journalDayKeys[index]);
+      const previousDay = new Date(journalDayKeys[index - 1]);
+      const diffDays = Math.round((currentDay.getTime() - previousDay.getTime()) / 86400000);
+
+      if (diffDays !== 1) break;
+      streak += 1;
+    }
+
+    return streak;
+  }, [journalDayKeys]);
+
+  const lastWeekMoodCounts = useMemo(() => {
+    const oneWeekAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
+
+    return moodAnalyses.reduce<Record<string, number>>((counts, analysis) => {
+      const analyzedAt = analysis.analyzedAt || analysis.createdAt;
+      const timestamp = analyzedAt ? new Date(analyzedAt).getTime() : 0;
+
+      if (!timestamp || timestamp < oneWeekAgo) return counts;
+
+      const mood = (analysis.mood || analysis.emotion || analysis.label || analysis.sentiment || 'thoughtful').toLowerCase();
+      counts[mood] = (counts[mood] || 0) + 1;
+      return counts;
+    }, {});
+  }, [moodAnalyses]);
+
+  const topLastWeekMoods = useMemo(
+    () =>
+      Object.entries(lastWeekMoodCounts)
+        .sort((first, second) => second[1] - first[1] || first[0].localeCompare(second[0]))
+        .slice(0, 3),
+    [lastWeekMoodCounts]
+  );
+
+  const achievementPreview = useMemo(() => {
+    const previews = [
+      {
+        icon: '🏆',
+        label: '7-Day Streak',
+        unlocked: currentStreak >= 7,
+        progress: `${Math.min(currentStreak, 7)}/7 days`,
+      },
+      {
+        icon: '⭐',
+        label: 'First Story',
+        unlocked: stories.length >= 1,
+        progress: `${stories.length}/1 story`,
+      },
+      {
+        icon: '💖',
+        label: 'Mood Master',
+        unlocked: new Set(moodAnalyses.map((analysis) => analysis.mood || analysis.emotion || analysis.label).filter(Boolean)).size >= 5,
+        progress: `${new Set(moodAnalyses.map((analysis) => analysis.mood || analysis.emotion || analysis.label).filter(Boolean)).size}/5 moods`,
+      },
+    ];
+
+    return previews;
+  }, [currentStreak, moodAnalyses, stories.length]);
 
   const getMoodIcon = (mood: string) => {
     switch(mood) {
@@ -97,7 +199,22 @@ export function ChildHomeScreenRedesigned({
       case 'happy': return 'child-yellow';
       case 'excited': return 'child-peach';
       case 'calm': return 'child-mint';
+      case 'sad': return 'child-lavender';
+      case 'worried': return 'child-lavender';
+      case 'angry': return 'child-peach';
       default: return 'child-blue';
+    }
+  };
+
+  const getMoodEmoji = (mood: string) => {
+    switch(mood) {
+      case 'happy': return '😊';
+      case 'calm': return '😌';
+      case 'excited': return '🤩';
+      case 'sad': return '😔';
+      case 'worried': return '😟';
+      case 'angry': return '😤';
+      default: return '🙂';
     }
   };
 
@@ -122,6 +239,7 @@ export function ChildHomeScreenRedesigned({
           isOpen={isSidebarOpen}
           onClose={() => setIsSidebarOpen(false)}
           onLogoClick={() => handleNavigation('home')}
+          streakDays={currentStreak}
         />
       </div>
 
@@ -148,7 +266,7 @@ export function ChildHomeScreenRedesigned({
               </div>
               <div className="flex-1 min-w-0">
                 <p className="text-sm text-[#2d3748] truncate">{childName}</p>
-                <p className="text-xs text-[#64748b]">7-day streak 🔥</p>
+                <p className="text-xs text-[#64748b]">{currentStreak}-day streak 🔥</p>
               </div>
             </div>
           </div>
@@ -247,7 +365,9 @@ export function ChildHomeScreenRedesigned({
                 </div>
                 <div>
                   <h4 className="text-[#2d3748] mb-2">Create Journal</h4>
-                  <p className="text-[#64748b] text-sm">Share your thoughts and feelings</p>
+                  <p className="text-[#64748b] text-sm">
+                    {journals.length} {journals.length === 1 ? 'entry' : 'entries'} saved so far
+                  </p>
                 </div>
               </div>
             </Card>
@@ -264,7 +384,9 @@ export function ChildHomeScreenRedesigned({
                 </div>
                 <div>
                   <h4 className="text-[#2d3748] mb-2">Create a Story</h4>
-                  <p className="text-[#64748b] text-sm">Let AI help you write magic</p>
+                  <p className="text-[#64748b] text-sm">
+                    {stories.length} {stories.length === 1 ? 'story' : 'stories'} created
+                  </p>
                 </div>
               </div>
             </Card>
@@ -281,7 +403,9 @@ export function ChildHomeScreenRedesigned({
                 </div>
                 <div>
                   <h4 className="text-[#2d3748] mb-2">My Memories</h4>
-                  <p className="text-[#64748b] text-sm">Look back at past entries</p>
+                  <p className="text-[#64748b] text-sm">
+                    {journalDayKeys.length} active {journalDayKeys.length === 1 ? 'day' : 'days'}
+                  </p>
                 </div>
               </div>
             </Card>
@@ -330,18 +454,20 @@ export function ChildHomeScreenRedesigned({
               <h3 className="text-[#2d3748]">How I've Been Feeling 💭</h3>
               <Card variant="child">
                 <div className="space-y-3">
-                  <div className="text-center p-4 rounded-2xl bg-[var(--child-yellow)]/30">
-                    <div className="text-4xl mb-2">😊</div>
-                    <p className="text-[#744210]">5 happy days</p>
-                  </div>
-                  <div className="text-center p-4 rounded-2xl bg-[var(--child-mint)]/30">
-                    <div className="text-4xl mb-2">😌</div>
-                    <p className="text-[#065f46]">3 calm days</p>
-                  </div>
-                  <div className="text-center p-4 rounded-2xl bg-[var(--child-peach)]/30">
-                    <div className="text-4xl mb-2">🤩</div>
-                    <p className="text-[#7c2d12]">2 excited days</p>
-                  </div>
+                  {topLastWeekMoods.map(([mood, count]) => (
+                    <div key={mood} className="text-center p-4 rounded-2xl bg-[var(--child-blue)]/20">
+                      <div className="text-4xl mb-2">{getMoodEmoji(mood)}</div>
+                      <p className="text-[#1a365d] capitalize">
+                        {count} {mood} {count === 1 ? 'day' : 'days'}
+                      </p>
+                    </div>
+                  ))}
+                  {topLastWeekMoods.length === 0 && (
+                    <div className="text-center p-4 rounded-2xl bg-[var(--child-blue)]/20">
+                      <div className="text-4xl mb-2">{getMoodEmoji('thoughtful')}</div>
+                      <p className="text-[#1a365d]">No moods detected this week yet</p>
+                    </div>
+                  )}
                 </div>
               </Card>
 
@@ -353,18 +479,15 @@ export function ChildHomeScreenRedesigned({
                     <h4 className="text-[#2d3748]">Achievements</h4>
                   </div>
                   <div className="space-y-2">
-                    <div className="flex items-center gap-2 text-sm">
-                      <span className="text-2xl">🏆</span>
-                      <span className="text-[#64748b]">7-Day Streak</span>
-                    </div>
-                    <div className="flex items-center gap-2 text-sm">
-                      <span className="text-2xl">⭐</span>
-                      <span className="text-[#64748b]">First Story</span>
-                    </div>
-                    <div className="flex items-center gap-2 text-sm">
-                      <span className="text-2xl">💖</span>
-                      <span className="text-[#64748b]">Mood Master</span>
-                    </div>
+                    {achievementPreview.map((achievement) => (
+                      <div key={achievement.label} className="flex items-center gap-2 text-sm">
+                        <span className="text-2xl">{achievement.icon}</span>
+                        <span className={achievement.unlocked ? 'text-[#2d3748]' : 'text-[#64748b]'}>
+                          {achievement.label}
+                        </span>
+                        <span className="ml-auto text-xs text-[#94a3b8]">{achievement.progress}</span>
+                      </div>
+                    ))}
                   </div>
                 </div>
               </Card>

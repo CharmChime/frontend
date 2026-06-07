@@ -10,9 +10,19 @@ interface ChildSidebarProps {
   isOpen?: boolean;
   onClose?: () => void;
   onLogoClick?: () => void;
+  streakDays?: number;
 }
 
-export function ChildSidebar({ childName, activeItem = 'home', onNavigate, onLogout, isOpen = true, onClose, onLogoClick }: ChildSidebarProps) {
+export function ChildSidebar({
+  childName,
+  activeItem = 'home',
+  onNavigate,
+  onLogout,
+  isOpen = true,
+  onClose,
+  onLogoClick,
+  streakDays,
+}: ChildSidebarProps) {
   const menuItems = [
     { id: 'home', label: 'Home', icon: <Home className="w-5 h-5" /> },
     { id: 'entry', label: 'New Entry', icon: <PenLine className="w-5 h-5" /> },
@@ -84,7 +94,9 @@ export function ChildSidebar({ childName, activeItem = 'home', onNavigate, onLog
               </div>
               <div className="flex-1 min-w-0">
                 <p className="text-sm text-[#2d3748] truncate">{childName}</p>
-                <p className="text-xs text-[#64748b]">7-day streak 🔥</p>
+                <p className="text-xs text-[#64748b]">
+                  {typeof streakDays === 'number' ? `${streakDays}-day streak` : 'Keep journaling'}
+                </p>
               </div>
             </div>
           </div>

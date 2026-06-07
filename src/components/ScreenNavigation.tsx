@@ -268,6 +268,7 @@ export function ScreenNavigation() {
           <AchievementsScreen
             onBack={() => goTo('/child/home')}
             childName={childDisplayName}
+            childId={child?.id}
             onNavigate={handleChildNavigation}
             onLogout={handleLogout}
           />

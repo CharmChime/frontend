@@ -10,7 +10,7 @@ import { LogoutConfirmation } from '../components/LogoutConfirmation';
 import { MemoryDetailScreen, type Memory } from './MemoryDetailScreen';
 import { ArrowLeft, Search, Filter, Calendar, Star, Heart, BookOpen, Sparkles, ChevronDown, Volume2, Smile, Edit, Trash2 } from 'lucide-react';
 import { api, type Journal } from '../services/api';
-import { formatDate, getMoodLabel, moodColor, moodEmoji, readingTime, wordCount } from '../services/journalAdapters';
+import { formatDate, getMoodLabel, htmlToText, moodColor, moodEmoji, readingTime, wordCount } from '../services/journalAdapters';
 
 interface MemoriesScreenProps {
   onBack: () => void;
@@ -80,7 +80,7 @@ export function MemoriesScreen({ onBack, childName = 'Friend', childId, onNaviga
         return {
           id: journal.id,
           title: journal.title,
-          preview: journal.content.slice(0, 120),
+          preview: htmlToText(journal.content).slice(0, 120),
           content: journal.content,
           mood,
           moodEmoji: moodEmoji(mood),
@@ -158,7 +158,7 @@ export function MemoriesScreen({ onBack, childName = 'Friend', childId, onNaviga
     }
 
     window.speechSynthesis.cancel();
-    const utterance = new SpeechSynthesisUtterance(memory.content);
+    const utterance = new SpeechSynthesisUtterance(htmlToText(memory.content));
     utterance.rate = 0.95;
     window.speechSynthesis.speak(utterance);
   };

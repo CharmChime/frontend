@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { Card } from '../components/Card';
 import { Button } from '../components/Button';
 import { Badge } from '../components/Badge';
@@ -6,8 +6,9 @@ import { IconButton } from '../components/IconButton';
 import { ChildSidebar } from '../components/ChildSidebar';
 import { MobileMenuButton } from '../components/MobileMenuButton';
 import { LogoutConfirmation } from '../components/LogoutConfirmation';
-import { ArrowLeft, Smile, Meh, Frown, Heart, Star, BookOpen, Save, Sparkles, Mic, MicOff, Bold, Italic, Underline, Type, AlignLeft, AlignCenter, AlignRight } from 'lucide-react';
+import { ArrowLeft, Smile, Meh, Frown, Heart, Star, BookOpen, Save, Sparkles, Mic, MicOff, Bold, Italic, Underline, Type, AlignLeft, AlignCenter, AlignRight, List, ListOrdered } from 'lucide-react';
 import { api } from '../services/api';
+import { htmlToText } from '../services/journalAdapters';
 
 interface JournalEntryScreenProps {
   onBack: () => void;
@@ -26,11 +27,16 @@ export function JournalEntryScreen({ onBack, onSave, childName = 'Friend', child
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
+  const [isTranscribing, setIsTranscribing] = useState(false);
+  const [hasVoiceTranscript, setHasVoiceTranscript] = useState(false);
   const [fontSize, setFontSize] = useState('16');
   const [textAlign, setTextAlign] = useState('left');
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState('');
-  const textareaRef = React.useRef<HTMLTextAreaElement>(null);
+  const editorRef = useRef<HTMLDivElement>(null);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
+  const mediaStreamRef = useRef<MediaStream | null>(null);
 
   const handleLogout = () => {
     setShowLogoutConfirm(false);
@@ -47,31 +53,134 @@ export function JournalEntryScreen({ onBack, onSave, childName = 'Friend', child
     }
   };
 
-  const applyFormat = (formatType: 'bold' | 'italic' | 'underline') => {
-    const textarea = textareaRef.current;
-    if (!textarea) return;
+  const syncEditorContent = () => {
+    setContent(editorRef.current?.innerHTML || '');
+  };
 
-    const start = textarea.selectionStart;
-    const end = textarea.selectionEnd;
-    const selectedText = content.substring(start, end);
+  const focusEditor = () => {
+    editorRef.current?.focus();
+  };
 
-    if (!selectedText) return;
+  const applyEditorCommand = (command: string, value?: string) => {
+    focusEditor();
+    document.execCommand(command, false, value);
+    syncEditorContent();
+  };
 
-    let formattedText = '';
-    switch (formatType) {
-      case 'bold':
-        formattedText = `**${selectedText}**`;
-        break;
-      case 'italic':
-        formattedText = `*${selectedText}*`;
-        break;
-      case 'underline':
-        formattedText = `__${selectedText}__`;
-        break;
+  const setEditorAlignment = (alignment: 'left' | 'center' | 'right') => {
+    setTextAlign(alignment);
+    const commandMap = {
+      left: 'justifyLeft',
+      center: 'justifyCenter',
+      right: 'justifyRight',
+    };
+
+    applyEditorCommand(commandMap[alignment]);
+  };
+
+  const sanitizeEditorHtml = (html: string) =>
+    html
+      .replace(/<script[\s\S]*?>[\s\S]*?<\/script>/gi, '')
+      .replace(/<style[\s\S]*?>[\s\S]*?<\/style>/gi, '')
+      .replace(/\son\w+="[^"]*"/gi, '')
+      .replace(/\son\w+='[^']*'/gi, '')
+      .replace(/\shref=["']javascript:[^"']*["']/gi, '')
+      .trim();
+
+  const insertTextIntoEditor = (text: string) => {
+    focusEditor();
+    const html = text
+      .split(/\n{2,}/)
+      .map((paragraph) => paragraph.trim())
+      .filter(Boolean)
+      .map((paragraph) => `<p>${paragraph.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</p>`)
+      .join('');
+
+    document.execCommand('insertHTML', false, html);
+    syncEditorContent();
+  };
+
+  const stopMediaStream = () => {
+    mediaStreamRef.current?.getTracks().forEach((track) => track.stop());
+    mediaStreamRef.current = null;
+  };
+
+  const transcribeAudio = async (audioBlob: Blob) => {
+    setIsTranscribing(true);
+    setError('');
+
+    try {
+      const { transcript } = await api.voice.speechToText(audioBlob);
+      const cleanTranscript = transcript.trim();
+
+      if (!cleanTranscript) {
+        setError('I could not hear any words in that recording. Please try again.');
+        return;
+      }
+
+      if (htmlToText(content)) {
+        insertTextIntoEditor(`\n\n${cleanTranscript}`);
+      } else {
+        setContent(`<p>${cleanTranscript.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</p>`);
+        if (editorRef.current) {
+          editorRef.current.innerHTML = `<p>${cleanTranscript.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</p>`;
+        }
+      }
+      setHasVoiceTranscript(true);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Speech-to-text failed.');
+    } finally {
+      setIsTranscribing(false);
+    }
+  };
+
+  const handleToggleRecording = async () => {
+    if (isRecording) {
+      mediaRecorderRef.current?.stop();
+      setIsRecording(false);
+      return;
     }
 
-    const newContent = content.substring(0, start) + formattedText + content.substring(end);
-    setContent(newContent);
+    if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === 'undefined') {
+      setError('Your browser does not support microphone recording.');
+      return;
+    }
+
+    setError('');
+
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const recorder = new MediaRecorder(stream);
+
+      mediaStreamRef.current = stream;
+      audioChunksRef.current = [];
+      mediaRecorderRef.current = recorder;
+
+      recorder.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+          audioChunksRef.current.push(event.data);
+        }
+      };
+
+      recorder.onstop = () => {
+        const mimeType = recorder.mimeType || 'audio/webm';
+        const audioBlob = new Blob(audioChunksRef.current, { type: mimeType });
+
+        stopMediaStream();
+        mediaRecorderRef.current = null;
+
+        if (audioBlob.size > 0) {
+          void transcribeAudio(audioBlob);
+        }
+      };
+
+      recorder.start();
+      setIsRecording(true);
+    } catch (err) {
+      stopMediaStream();
+      setIsRecording(false);
+      setError(err instanceof Error ? err.message : 'Could not access your microphone.');
+    }
   };
 
   const handleSave = async () => {
@@ -82,22 +191,23 @@ export function JournalEntryScreen({ onBack, onSave, childName = 'Friend', child
       return;
     }
 
-    if (!content.trim()) {
+    if (!htmlToText(content)) {
       setError('Write a little something before saving.');
       return;
     }
 
     setIsSaving(true);
     try {
+      const cleanContent = sanitizeEditorHtml(content);
       const data = await api.journals.create({
         childId,
         title: title.trim() || undefined,
-        content,
-        inputType: isRecording ? 'voice' : 'text',
-        source: isRecording ? 'speech-to-text' : 'manual',
+        content: cleanContent,
+        inputType: hasVoiceTranscript ? 'voice' : 'text',
+        source: hasVoiceTranscript ? 'speech-to-text' : 'manual',
       });
 
-      await api.mood.analyze(data.journal.id).catch(() => undefined);
+      await api.mood.analyze(data.journal.id);
       onSave?.();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not save this entry.');
@@ -153,7 +263,7 @@ export function JournalEntryScreen({ onBack, onSave, childName = 'Friend', child
                 onClick={handleSave}
                 size="medium"
                 className="hidden sm:flex"
-                disabled={isSaving}
+                disabled={isSaving || isRecording || isTranscribing}
               >
                 {isSaving ? 'Saving...' : 'Save Entry'}
               </Button>
@@ -202,7 +312,8 @@ export function JournalEntryScreen({ onBack, onSave, childName = 'Friend', child
                 <IconButton 
                   variant={isRecording ? "child-peach" : "child-blue"}
                   size="medium"
-                  onClick={() => setIsRecording(!isRecording)}
+                  onClick={handleToggleRecording}
+                  disabled={isTranscribing}
                 >
                   {isRecording ? <MicOff className="w-5 h-5" /> : <Mic className="w-5 h-5" />}
                 </IconButton>
@@ -212,21 +323,24 @@ export function JournalEntryScreen({ onBack, onSave, childName = 'Friend', child
               <div className="bg-gray-50 rounded-2xl p-3 flex flex-wrap items-center gap-2">
                 <div className="flex items-center gap-1 border-r border-gray-300 pr-2">
                   <button
-                    onClick={() => applyFormat('bold')}
+                    type="button"
+                    onClick={() => applyEditorCommand('bold')}
                     className="p-2 rounded-lg hover:bg-white transition-colors"
                     title="Bold"
                   >
                     <Bold className="w-4 h-4 text-[#64748b]" />
                   </button>
                   <button
-                    onClick={() => applyFormat('italic')}
+                    type="button"
+                    onClick={() => applyEditorCommand('italic')}
                     className="p-2 rounded-lg hover:bg-white transition-colors"
                     title="Italic"
                   >
                     <Italic className="w-4 h-4 text-[#64748b]" />
                   </button>
                   <button
-                    onClick={() => applyFormat('underline')}
+                    type="button"
+                    onClick={() => applyEditorCommand('underline')}
                     className="p-2 rounded-lg hover:bg-white transition-colors"
                     title="Underline"
                   >
@@ -248,23 +362,45 @@ export function JournalEntryScreen({ onBack, onSave, childName = 'Friend', child
                   </select>
                 </div>
 
+                <div className="flex items-center gap-1 border-r border-gray-300 pr-2">
+                  <button
+                    type="button"
+                    onClick={() => applyEditorCommand('insertUnorderedList')}
+                    className="p-2 rounded-lg hover:bg-white transition-colors"
+                    title="Bullet List"
+                  >
+                    <List className="w-4 h-4 text-[#64748b]" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => applyEditorCommand('insertOrderedList')}
+                    className="p-2 rounded-lg hover:bg-white transition-colors"
+                    title="Numbered List"
+                  >
+                    <ListOrdered className="w-4 h-4 text-[#64748b]" />
+                  </button>
+                </div>
+
                 <div className="flex items-center gap-1">
                   <button
-                    onClick={() => setTextAlign('left')}
+                    type="button"
+                    onClick={() => setEditorAlignment('left')}
                     className={`p-2 rounded-lg transition-colors ${textAlign === 'left' ? 'bg-white' : 'hover:bg-white'}`}
                     title="Align Left"
                   >
                     <AlignLeft className="w-4 h-4 text-[#64748b]" />
                   </button>
                   <button
-                    onClick={() => setTextAlign('center')}
+                    type="button"
+                    onClick={() => setEditorAlignment('center')}
                     className={`p-2 rounded-lg transition-colors ${textAlign === 'center' ? 'bg-white' : 'hover:bg-white'}`}
                     title="Align Center"
                   >
                     <AlignCenter className="w-4 h-4 text-[#64748b]" />
                   </button>
                   <button
-                    onClick={() => setTextAlign('right')}
+                    type="button"
+                    onClick={() => setEditorAlignment('right')}
                     className={`p-2 rounded-lg transition-colors ${textAlign === 'right' ? 'bg-white' : 'hover:bg-white'}`}
                     title="Align Right"
                   >
@@ -282,21 +418,28 @@ export function JournalEntryScreen({ onBack, onSave, childName = 'Friend', child
                 </div>
               )}
 
-              <textarea
-                ref={textareaRef}
-                value={content}
-                onChange={(e) => setContent(e.target.value)}
-                placeholder="Today was special because..."
-                rows={10}
+              {isTranscribing && (
+                <div className="bg-[var(--child-blue)]/15 border-2 border-[var(--child-blue)] rounded-[1.5rem] p-3 sm:p-4">
+                  <p className="text-[#1a365d] text-xs sm:text-sm">Turning your voice into journal text...</p>
+                </div>
+              )}
+
+              <div
+                ref={editorRef}
+                contentEditable
+                role="textbox"
+                aria-label="Journal content"
+                data-placeholder="Today was special because..."
+                onInput={syncEditorContent}
                 style={{
                   fontSize: `${fontSize}px`,
                   textAlign: textAlign,
                 }}
-                className="w-full px-4 sm:px-6 py-3 sm:py-4 rounded-[1.5rem] border-2 border-[var(--child-blue)] focus:border-[var(--child-blue-dark)] focus:outline-none focus:ring-4 focus:ring-[var(--child-blue)]/20 bg-white transition-all resize-none"
+                className="journal-rich-editor min-h-[16rem] w-full overflow-auto px-4 sm:px-6 py-3 sm:py-4 rounded-[1.5rem] border-2 border-[var(--child-blue)] focus:border-[var(--child-blue-dark)] focus:outline-none focus:ring-4 focus:ring-[var(--child-blue)]/20 bg-white transition-all"
               />
 
               <div className="flex items-center justify-between text-xs sm:text-sm text-[#64748b]">
-                <span>{content.length} characters</span>
+                <span>{htmlToText(content).length} characters</span>
                 <span>💡 No rush, take your time!</span>
               </div>
             </div>
@@ -341,7 +484,7 @@ export function JournalEntryScreen({ onBack, onSave, childName = 'Friend', child
               icon={<Save className="w-5 h-5" />}
               onClick={handleSave}
               className="w-full"
-              disabled={isSaving}
+              disabled={isSaving || isRecording || isTranscribing}
             >
               {isSaving ? 'Saving...' : 'Save My Entry'}
             </Button>
@@ -355,7 +498,7 @@ export function JournalEntryScreen({ onBack, onSave, childName = 'Friend', child
               icon={<Save className="w-5 h-5" />}
               onClick={handleSave}
               className="w-full"
-              disabled={isSaving}
+              disabled={isSaving || isRecording || isTranscribing}
             >
               {isSaving ? 'Saving...' : 'Save My Entry ✨'}
             </Button>

@@ -4,6 +4,7 @@ import { Button } from '../components/Button';
 import { IconButton } from '../components/IconButton';
 import { Badge } from '../components/Badge';
 import { ArrowLeft, Edit, Trash2 } from 'lucide-react';
+import { sanitizeRichTextHtml } from '../services/journalAdapters';
 
 export interface Memory {
   id: string;
@@ -75,7 +76,10 @@ export function MemoryDetailScreen({
           </div>
 
           <div className="rounded-3xl border border-[#dbeafe] bg-white p-6 text-[#0f172a] shadow-sm">
-            <p className="whitespace-pre-line leading-7">{memory.content}</p>
+            <div
+              className="journal-rich-content leading-7"
+              dangerouslySetInnerHTML={{ __html: sanitizeRichTextHtml(memory.content) }}
+            />
           </div>
         </Card>
 

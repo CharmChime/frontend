@@ -58,11 +58,44 @@ export const formatShortDate = (value?: string) => {
 export const getMoodLabel = (analysis?: MoodAnalysis) =>
   analysis?.mood || analysis?.label || analysis?.sentiment || 'thoughtful';
 
+export const htmlToText = (content = '') => {
+  const withLineBreaks = content
+    .replace(/<\s*br\s*\/?>/gi, '\n')
+    .replace(/<\s*\/p\s*>/gi, '\n')
+    .replace(/<\s*\/div\s*>/gi, '\n');
+
+  const withoutTags = withLineBreaks.replace(/<[^>]*>/g, ' ');
+
+  return withoutTags
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/&amp;/gi, '&')
+    .replace(/&lt;/gi, '<')
+    .replace(/&gt;/gi, '>')
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;/gi, "'")
+    .replace(/\s+/g, ' ')
+    .trim();
+};
+
+export const isRichTextContent = (content = '') => /<[^>]+>/.test(content);
+
+export const sanitizeRichTextHtml = (content = '') => {
+  if (!isRichTextContent(content)) {
+    return content.replace(/\n/g, '<br />');
+  }
+
+  return content
+    .replace(/<script[\s\S]*?>[\s\S]*?<\/script>/gi, '')
+    .replace(/<style[\s\S]*?>[\s\S]*?<\/style>/gi, '')
+    .replace(/\son\w+="[^"]*"/gi, '')
+    .replace(/\son\w+='[^']*'/gi, '')
+    .replace(/\shref=["']javascript:[^"']*["']/gi, '');
+};
+
 export const wordCount = (content: string) =>
-  content.trim() ? content.trim().split(/\s+/).length : 0;
+  htmlToText(content).trim() ? htmlToText(content).trim().split(/\s+/).length : 0;
 
 export const readingTime = (content: string) => {
   const minutes = Math.max(1, Math.ceil(wordCount(content) / 180));
   return `${minutes} min`;
 };
-

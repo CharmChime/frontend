@@ -6,6 +6,7 @@ interface IconButtonProps {
   size?: 'small' | 'medium' | 'large';
   onClick?: React.MouseEventHandler<HTMLButtonElement>;
   className?: string;
+  disabled?: boolean;
 }
 
 export function IconButton({ 
@@ -13,7 +14,8 @@ export function IconButton({
   variant = 'child-blue', 
   size = 'medium', 
   onClick,
-  className = '' 
+  className = '',
+  disabled = false,
 }: IconButtonProps) {
   const variantClasses = {
     'child-blue': 'bg-[var(--child-blue)] hover:bg-[var(--child-blue-dark)] text-[#1a365d]',
@@ -34,6 +36,7 @@ export function IconButton({
   return (
     <button
       onClick={onClick}
+      disabled={disabled}
       className={`
         inline-flex items-center justify-center
         rounded-full
@@ -42,6 +45,7 @@ export function IconButton({
         hover:shadow-[0_6px_20px_rgba(0,0,0,0.1)]
         hover:scale-110
         active:scale-100
+        disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:scale-100
         ${variantClasses[variant]}
         ${sizeClasses[size]}
         ${className}
