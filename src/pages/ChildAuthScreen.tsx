@@ -2,18 +2,19 @@ import React, { useState } from 'react';
 import { Card } from '../components/Card';
 import { Button } from '../components/Button';
 import { Input } from '../components/Input';
-import { Sparkles, Heart, Star, ArrowLeft } from 'lucide-react';
+import { Sparkles, Heart, Star, ArrowLeft, Mail } from 'lucide-react';
 import logo from '../assets/35160e99e546074153c34366a831aa0e30d421e6.png';
 
 interface ChildAuthScreenProps {
   onLogin: (name: string, pin: string) => Promise<void>;
-  onRegister: (name: string, age: string, pin: string) => Promise<void>;
+  onRegister: (name: string, email: string, age: string, pin: string) => Promise<void>;
   onBack: () => void;
 }
 
 export function ChildAuthScreen({ onLogin, onRegister, onBack }: ChildAuthScreenProps) {
   const [isLogin, setIsLogin] = useState(true);
   const [name, setName] = useState('');
+  const [email, setEmail] = useState('');
   const [age, setAge] = useState('');
   const [pin, setPin] = useState('');
   const [confirmPin, setConfirmPin] = useState('');
@@ -33,7 +34,7 @@ export function ChildAuthScreen({ onLogin, onRegister, onBack }: ChildAuthScreen
       if (isLogin) {
         await onLogin(name, pin);
       } else {
-        await onRegister(name, age, pin);
+        await onRegister(name, email, age, pin);
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not sign you in. Please try again.');
@@ -137,15 +138,27 @@ export function ChildAuthScreen({ onLogin, onRegister, onBack }: ChildAuthScreen
               />
 
               {!isLogin && (
-                <Input
-                  label="How old are you?"
-                  placeholder="Your age..."
-                  type="number"
-                  value={age}
-                  onChange={(e) => setAge(e.target.value)}
-                  variant="child"
-                  icon={<Star className="w-5 h-5" fill="currentColor" />}
-                />
+                <>
+                  <Input
+                    label="Parent or guardian email"
+                    placeholder="email@example.com"
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    variant="child"
+                    icon={<Mail className="w-5 h-5" />}
+                  />
+
+                  <Input
+                    label="How old are you?"
+                    placeholder="Your age..."
+                    type="number"
+                    value={age}
+                    onChange={(e) => setAge(e.target.value)}
+                    variant="child"
+                    icon={<Star className="w-5 h-5" fill="currentColor" />}
+                  />
+                </>
               )}
 
               <Input

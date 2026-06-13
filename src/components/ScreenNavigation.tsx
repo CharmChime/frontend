@@ -18,7 +18,8 @@ import { ParentAnalyticsScreen } from '../pages/ParentAnalyticsScreen';
 import { ParentInsightsScreen } from '../pages/ParentInsightsScreen';
 import { ParentActivityScreen } from '../pages/ParentActivityScreen';
 import { ParentReportsScreen } from '../pages/ParentReportsScreen';
-import { api, type Child, type Parent } from '../services/api';
+import { OTP_CONTEXT_STORAGE_KEY, VerifyOtpScreen } from '../pages/VerifyOtpScreen';
+import { ApiRequestError, api, type Child, type OtpContext, type Parent } from '../services/api';
 
 const childRoutes: Record<string, string> = {
   home: '/child/home',
@@ -38,6 +39,38 @@ const parentRoutes: Record<string, string> = {
   activity: '/parent/activity',
   reports: '/parent/reports',
   settings: '/parent/settings',
+};
+
+const getOtpRequiredContext = (
+  error: unknown,
+  fallback: OtpContext
+): OtpContext | null => {
+  if (!(error instanceof ApiRequestError)) {
+    return null;
+  }
+
+  const otpError = error.errors.find((item) => {
+    if (!item || typeof item !== 'object') {
+      return false;
+    }
+
+    return (item as { code?: string }).code === 'OTP_REQUIRED';
+  });
+
+  if (!otpError) {
+    return null;
+  }
+
+  const destination = (otpError as { destination?: string }).destination;
+
+  return {
+    userType: fallback.userType,
+    email: destination || fallback.email,
+  };
+};
+
+const saveOtpContext = (context: OtpContext) => {
+  sessionStorage.setItem(OTP_CONTEXT_STORAGE_KEY, JSON.stringify(context));
 };
 
 function JournalDetailRoute({
@@ -83,42 +116,70 @@ export function ScreenNavigation() {
   };
 
   const handleChildLogin = async (name: string, pin: string) => {
-    const data = await api.auth.childLogin({ name, pin });
-    setChild(data.child);
-    localStorage.setItem('charmchime_child', JSON.stringify(data.child));
-    localStorage.setItem('charmchime_child_token', data.token);
-    setUserType('child');
-    goTo('/child/home');
+    try {
+      const data = await api.auth.childLogin({ name, pin });
+      setChild(data.child);
+      localStorage.setItem('charmchime_child', JSON.stringify(data.child));
+      localStorage.setItem('charmchime_child_token', data.token);
+      setUserType('child');
+      goTo('/child/home');
+    } catch (error) {
+      const context = getOtpRequiredContext(error, {
+        userType: 'child',
+        email: '',
+      });
+
+      if (context?.email) {
+        saveOtpContext(context);
+        navigate('/verify-otp', { state: context });
+        return;
+      }
+
+      throw error;
+    }
   };
 
-  const handleChildRegister = async (name: string, age: string, pin: string) => {
-    const data = await api.auth.childSignup({ name, age, pin, confirmPin: pin });
-    setChild(data.child);
-    localStorage.setItem('charmchime_child', JSON.stringify(data.child));
-    setUserType('child');
-    goTo('/child/home');
+  const handleChildRegister = async (name: string, email: string, age: string, pin: string) => {
+    await api.auth.childSignup({ name, email, age, pin, confirmPin: pin });
+    const context: OtpContext = { userType: 'child', email };
+    saveOtpContext(context);
+    navigate('/verify-otp', { state: context });
   };
 
   const handleParentLogin = async (email: string, password: string) => {
-    const data = await api.auth.parentLogin({ email, password });
-    setParent(data.parent);
-    localStorage.setItem('charmchime_parent', JSON.stringify(data.parent));
-    localStorage.setItem('charmchime_parent_token', data.token);
-    setUserType('parent');
-    goTo('/parent/dashboard');
+    try {
+      const data = await api.auth.parentLogin({ email, password });
+      setParent(data.parent);
+      localStorage.setItem('charmchime_parent', JSON.stringify(data.parent));
+      localStorage.setItem('charmchime_parent_token', data.token);
+      setUserType('parent');
+      goTo('/parent/dashboard');
+    } catch (error) {
+      const context = getOtpRequiredContext(error, {
+        userType: 'parent',
+        email,
+      });
+
+      if (context?.email) {
+        saveOtpContext(context);
+        navigate('/verify-otp', { state: context });
+        return;
+      }
+
+      throw error;
+    }
   };
 
   const handleParentRegister = async (name: string, email: string, password: string) => {
-    const data = await api.auth.parentSignup({
+    await api.auth.parentSignup({
       fullName: name,
       email,
       password,
       confirmPassword: password,
     });
-    setParent(data.parent);
-    localStorage.setItem('charmchime_parent', JSON.stringify(data.parent));
-    setUserType('parent');
-    goTo('/parent/dashboard');
+    const context: OtpContext = { userType: 'parent', email };
+    saveOtpContext(context);
+    navigate('/verify-otp', { state: context });
   };
 
   const handleSaveEntry = () => {
@@ -133,7 +194,19 @@ export function ScreenNavigation() {
     localStorage.removeItem('charmchime_parent');
     localStorage.removeItem('charmchime_child_token');
     localStorage.removeItem('charmchime_parent_token');
+    sessionStorage.removeItem(OTP_CONTEXT_STORAGE_KEY);
     goTo('/landing');
+  };
+
+  const handleOtpVerified = (verifiedUserType: 'parent' | 'child') => {
+    setUserType(null);
+    setChild(null);
+    setParent(null);
+    localStorage.removeItem('charmchime_child');
+    localStorage.removeItem('charmchime_parent');
+    localStorage.removeItem('charmchime_child_token');
+    localStorage.removeItem('charmchime_parent_token');
+    goTo(verifiedUserType === 'parent' ? '/parent/auth' : '/child/auth');
   };
 
   const handleChildNavigation = (page: string) => {
@@ -292,6 +365,15 @@ export function ScreenNavigation() {
             onLogin={handleParentLogin}
             onRegister={handleParentRegister}
             onBack={() => goTo('/landing')}
+          />
+        }
+      />
+      <Route
+        path="/verify-otp"
+        element={
+          <VerifyOtpScreen
+            onBack={() => goTo('/landing')}
+            onVerified={handleOtpVerified}
           />
         }
       />

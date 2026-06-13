@@ -5,9 +5,22 @@ type ApiEnvelope<T> = {
   data: T;
   message?: string;
   success?: boolean;
+  errors?: unknown[];
 };
 
 type QueryValue = string | number | boolean | undefined | null;
+
+export class ApiRequestError extends Error {
+  statusCode?: number;
+  errors: unknown[];
+
+  constructor(message: string, statusCode?: number, errors: unknown[] = []) {
+    super(message);
+    this.name = "ApiRequestError";
+    this.statusCode = statusCode;
+    this.errors = errors;
+  }
+}
 
 const buildQuery = (params?: Record<string, QueryValue>) => {
   if (!params) return "";
@@ -45,7 +58,7 @@ async function request<T>(
       (payload as any)?.detail?.message ||
       response.statusText ||
       "Request failed";
-    throw new Error(message);
+    throw new ApiRequestError(message, response.status, payload?.errors || []);
   }
 
   return payload?.data as T;
@@ -69,7 +82,9 @@ async function requestAudio(path: string, body: Record<string, unknown>): Promis
 export type Child = {
   id: string;
   name: string;
+  email?: string;
   age: number;
+  isVerified?: boolean;
   createdAt?: string;
 };
 
@@ -77,7 +92,26 @@ export type Parent = {
   id: string;
   fullName: string;
   email: string;
+  isVerified?: boolean;
   createdAt?: string;
+};
+
+export type OtpUserType = "parent" | "child";
+
+export type OtpContext = {
+  userType: OtpUserType;
+  email: string;
+};
+
+export type OtpResponse = {
+  otp: {
+    id: string;
+    userType: OtpUserType;
+    userId: string;
+    destination: string;
+    expiresAt: string;
+    maxAttempts: number;
+  };
 };
 
 export type Journal = {
@@ -128,7 +162,7 @@ export const api = {
         method: "POST",
         body: JSON.stringify(body),
       }),
-    childSignup: (body: { name: string; age: string; pin: string; confirmPin: string }) =>
+    childSignup: (body: { name: string; email: string; age: string; pin: string; confirmPin: string }) =>
       request<{ child: Child }>("/v1/auth/child/signup", {
         method: "POST",
         body: JSON.stringify(body),
@@ -145,6 +179,19 @@ export const api = {
       confirmPassword: string;
     }) =>
       request<{ parent: Parent }>("/v1/auth/parent/signup", {
+        method: "POST",
+        body: JSON.stringify(body),
+      }),
+    verifyOtp: (body: OtpContext & { otp: string }) =>
+      request<{ userType: OtpUserType; user: Parent | Child; isVerified: boolean }>(
+        "/v1/auth/verify-otp",
+        {
+          method: "POST",
+          body: JSON.stringify(body),
+        }
+      ),
+    resendOtp: (body: OtpContext) =>
+      request<OtpResponse>("/v1/auth/resend-otp", {
         method: "POST",
         body: JSON.stringify(body),
       }),
