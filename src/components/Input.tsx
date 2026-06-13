@@ -8,6 +8,7 @@ interface InputProps {
   type?: string;
   variant?: 'child' | 'parent';
   icon?: React.ReactNode;
+  maxLength?: number;
 }
 
 export function Input({ 
@@ -17,7 +18,8 @@ export function Input({
   onChange, 
   type = 'text',
   variant = 'child',
-  icon 
+  icon,
+  maxLength,
 }: InputProps) {
   const variantClasses = {
     child: 'border-2 border-[var(--child-blue)] focus:border-[var(--child-blue-dark)] bg-white',
@@ -42,6 +44,7 @@ export function Input({
           value={value}
           onChange={onChange}
           placeholder={placeholder}
+          maxLength={maxLength}
           className={`
             w-full
             ${variant === 'child' ? 'rounded-full' : 'rounded-xl'}
