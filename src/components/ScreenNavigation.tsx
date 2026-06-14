@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { Navigate, Route, Routes, useNavigate, useParams } from 'react-router';
 import { IntroLandingPage } from '../pages/IntroLandingPage';
 import { LandingPage } from '../pages/LandingPage';
@@ -109,7 +109,54 @@ export function ScreenNavigation() {
     const saved = localStorage.getItem('charmchime_parent');
     return saved ? JSON.parse(saved) : null;
   });
+  const [linkedChildren, setLinkedChildren] = useState<Child[]>([]);
   const [, setUserType] = useState<'child' | 'parent' | null>(null);
+
+  useEffect(() => {
+    const token = localStorage.getItem('charmchime_child_token');
+
+    if (!token) return;
+
+    api.children
+      .me()
+      .then(({ child: freshChild }) => {
+        setChild(freshChild);
+        localStorage.setItem('charmchime_child', JSON.stringify(freshChild));
+      })
+      .catch(() => {
+        // Keep the cached profile so existing navigation stays usable.
+      });
+  }, []);
+
+  useEffect(() => {
+    const token = localStorage.getItem('charmchime_parent_token');
+
+    if (!token) return;
+
+    api.parents
+      .me()
+      .then(({ parent: freshParent }) => {
+        setParent(freshParent);
+        localStorage.setItem('charmchime_parent', JSON.stringify(freshParent));
+      })
+      .catch(() => {
+        // Keep the cached profile so existing navigation stays usable.
+      });
+  }, []);
+
+  useEffect(() => {
+    const token = localStorage.getItem('charmchime_parent_token');
+
+    if (!token || !parent) {
+      setLinkedChildren([]);
+      return;
+    }
+
+    api.parents
+      .children()
+      .then(({ children }) => setLinkedChildren(children))
+      .catch(() => setLinkedChildren([]));
+  }, [parent]);
 
   const goTo = (path: string) => {
     navigate(path);
@@ -190,6 +237,7 @@ export function ScreenNavigation() {
     setUserType(null);
     setChild(null);
     setParent(null);
+    setLinkedChildren([]);
     localStorage.removeItem('charmchime_child');
     localStorage.removeItem('charmchime_parent');
     localStorage.removeItem('charmchime_child_token');
@@ -202,6 +250,7 @@ export function ScreenNavigation() {
     setUserType(null);
     setChild(null);
     setParent(null);
+    setLinkedChildren([]);
     localStorage.removeItem('charmchime_child');
     localStorage.removeItem('charmchime_parent');
     localStorage.removeItem('charmchime_child_token');
@@ -225,8 +274,19 @@ export function ScreenNavigation() {
     }
   };
 
+  const handleChildProfileUpdated = useCallback((updatedChild: Child) => {
+    setChild(updatedChild);
+    localStorage.setItem('charmchime_child', JSON.stringify(updatedChild));
+  }, []);
+
+  const handleParentProfileUpdated = useCallback((updatedParent: Parent) => {
+    setParent(updatedParent);
+    localStorage.setItem('charmchime_parent', JSON.stringify(updatedParent));
+  }, []);
+
   const childDisplayName = child?.name || 'Friend';
-  const parentChildName = child?.name || 'your child';
+  const parentChildName =
+    linkedChildren[0]?.nickname || linkedChildren[0]?.name || child?.name || 'your child';
 
   return (
     <Routes>
@@ -355,6 +415,7 @@ export function ScreenNavigation() {
             childName={childDisplayName}
             onNavigate={handleChildNavigation}
             onLogout={handleLogout}
+            onProfileUpdated={handleChildProfileUpdated}
           />
         }
       />
@@ -391,7 +452,12 @@ export function ScreenNavigation() {
       />
       <Route
         path="/parent/settings"
-        element={<ParentSettingsScreen onBack={() => goTo('/parent/dashboard')} />}
+        element={
+          <ParentSettingsScreen
+            onBack={() => goTo('/parent/dashboard')}
+            onProfileUpdated={handleParentProfileUpdated}
+          />
+        }
       />
       <Route
         path="/parent/analytics"
