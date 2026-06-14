@@ -6,9 +6,18 @@ import { IconButton } from '../components/IconButton';
 import { ChildSidebar } from '../components/ChildSidebar';
 import { MobileMenuButton } from '../components/MobileMenuButton';
 import { LogoutConfirmation } from '../components/LogoutConfirmation';
-import { ArrowLeft, Smile, Meh, Frown, Heart, Star, BookOpen, Save, Sparkles, Mic, MicOff, Bold, Italic, Underline, Type, AlignLeft, AlignCenter, AlignRight, List, ListOrdered } from 'lucide-react';
-import { api } from '../services/api';
-import { htmlToText } from '../services/journalAdapters';
+import { ArrowLeft, Save, Sparkles, Mic, MicOff, Bold, Italic, Underline, Type, AlignLeft, AlignCenter, AlignRight, List, ListOrdered, Heart, MessageCircle, CheckCircle } from 'lucide-react';
+import { api, type JournalCreateResponse } from '../services/api';
+import {
+  formatConfidence,
+  getJournalConfidence,
+  getJournalFeedback,
+  getJournalMoodLabel,
+  getJournalSentiment,
+  htmlToText,
+  moodColor,
+  moodEmoji,
+} from '../services/journalAdapters';
 
 interface JournalEntryScreenProps {
   onBack: () => void;
@@ -22,7 +31,6 @@ interface JournalEntryScreenProps {
 export function JournalEntryScreen({ onBack, onSave, childName = 'Friend', childId, onNavigate, onLogout }: JournalEntryScreenProps) {
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
-  const [selectedMood, setSelectedMood] = useState('');
   const [selectedTag, setSelectedTag] = useState('');
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
@@ -32,6 +40,8 @@ export function JournalEntryScreen({ onBack, onSave, childName = 'Friend', child
   const [fontSize, setFontSize] = useState('16');
   const [textAlign, setTextAlign] = useState('left');
   const [isSaving, setIsSaving] = useState(false);
+  const [saveStage, setSaveStage] = useState<'idle' | 'saving' | 'analyzing' | 'feedback'>('idle');
+  const [saveResult, setSaveResult] = useState<JournalCreateResponse | null>(null);
   const [error, setError] = useState('');
   const editorRef = useRef<HTMLDivElement>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
@@ -185,6 +195,7 @@ export function JournalEntryScreen({ onBack, onSave, childName = 'Friend', child
 
   const handleSave = async () => {
     setError('');
+    setSaveResult(null);
 
     if (!childId) {
       setError('Please log in as a child before saving an entry.');
@@ -197,8 +208,13 @@ export function JournalEntryScreen({ onBack, onSave, childName = 'Friend', child
     }
 
     setIsSaving(true);
+    setSaveStage('saving');
+    let stageTimer: number | undefined;
+    let feedbackTimer: number | undefined;
     try {
       const cleanContent = sanitizeEditorHtml(content);
+      stageTimer = window.setTimeout(() => setSaveStage('analyzing'), 500);
+      feedbackTimer = window.setTimeout(() => setSaveStage('feedback'), 1200);
       const data = await api.journals.create({
         childId,
         title: title.trim() || undefined,
@@ -207,14 +223,29 @@ export function JournalEntryScreen({ onBack, onSave, childName = 'Friend', child
         source: hasVoiceTranscript ? 'speech-to-text' : 'manual',
       });
 
-      await api.mood.analyze(data.journal.id);
-      onSave?.();
+      if (stageTimer) window.clearTimeout(stageTimer);
+      if (feedbackTimer) window.clearTimeout(feedbackTimer);
+      setSaveStage('feedback');
+      setSaveResult(data);
     } catch (err) {
+      if (stageTimer) window.clearTimeout(stageTimer);
+      if (feedbackTimer) window.clearTimeout(feedbackTimer);
       setError(err instanceof Error ? err.message : 'Could not save this entry.');
     } finally {
       setIsSaving(false);
+      setSaveStage('idle');
     }
   };
+
+  const createdJournal = saveResult?.journal;
+  const createdMood = saveResult?.mood;
+  const createdFeedback = getJournalFeedback(createdJournal, saveResult?.aiFeedback || saveResult?.feedback);
+  const createdMoodLabel = getJournalMoodLabel(createdJournal, createdMood);
+  const createdSentiment = getJournalSentiment(createdJournal, createdMood);
+  const createdConfidence = getJournalConfidence(createdJournal, createdMood);
+  const feedbackUnavailable =
+    Boolean(saveResult) &&
+    (!createdFeedback || createdFeedback.source === 'safe-fallback' || createdMood?.status === 'failed');
 
   const aiPrompts = [
     "Tell me about the best part of your day! 🌟",
@@ -424,6 +455,35 @@ export function JournalEntryScreen({ onBack, onSave, childName = 'Friend', child
                 </div>
               )}
 
+              {isSaving && (
+                <div className="bg-[var(--child-mint)]/20 border-2 border-[var(--child-mint)] rounded-[1.5rem] p-3 sm:p-4">
+                  <div className="grid gap-2 sm:grid-cols-3">
+                    {[
+                      { id: 'saving', label: 'Saving journal' },
+                      { id: 'analyzing', label: 'Analyzing mood' },
+                      { id: 'feedback', label: 'Preparing feedback' },
+                    ].map((stage) => {
+                      const active =
+                        saveStage === stage.id ||
+                        (stage.id === 'saving' && ['analyzing', 'feedback'].includes(saveStage)) ||
+                        (stage.id === 'analyzing' && saveStage === 'feedback');
+
+                      return (
+                        <div
+                          key={stage.id}
+                          className={`flex items-center gap-2 rounded-2xl px-3 py-2 text-xs sm:text-sm ${
+                            active ? 'bg-white text-[#065f46]' : 'bg-white/50 text-[#64748b]'
+                          }`}
+                        >
+                          <CheckCircle className="w-4 h-4" />
+                          {stage.label}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
               <div
                 ref={editorRef}
                 contentEditable
@@ -446,7 +506,7 @@ export function JournalEntryScreen({ onBack, onSave, childName = 'Friend', child
           </Card>
 
           {/* AI Suggestions */}
-          {content.length > 50 && (
+          {false && content.length > 50 && (
             <Card variant="child" className="bg-gradient-to-br from-white to-[var(--child-mint)]/20">
               <div className="flex flex-col sm:flex-row items-start gap-4">
                 <div className="w-12 h-12 rounded-full bg-[var(--child-mint)] flex items-center justify-center flex-shrink-0">
@@ -455,7 +515,7 @@ export function JournalEntryScreen({ onBack, onSave, childName = 'Friend', child
                 <div className="flex-1 space-y-3">
                   <h4 className="text-[#2d3748] text-base sm:text-lg">Chime's Thoughts 💭</h4>
                   <p className="text-[#4a5568] text-sm sm:text-base">
-                    That sounds wonderful! I can sense you're feeling {selectedMood || 'thoughtful'} today. Would you like me to help turn this into a creative story?
+                    Save your entry to see Chime's mood insight and feedback.
                   </p>
                   <Button
                     variant="child-mint"
@@ -465,6 +525,68 @@ export function JournalEntryScreen({ onBack, onSave, childName = 'Friend', child
                   >
                     Create Story
                   </Button>
+                </div>
+              </div>
+            </Card>
+          )}
+
+          {saveResult && createdJournal && (
+            <Card variant="child" className="bg-gradient-to-br from-white to-[var(--child-mint)]/20">
+              <div className="flex flex-col sm:flex-row items-start gap-4">
+                <div className={`w-14 h-14 rounded-full bg-[var(--${moodColor(createdMoodLabel)})] flex items-center justify-center flex-shrink-0 shadow-md`}>
+                  <span className="text-2xl">{moodEmoji(createdMoodLabel)}</span>
+                </div>
+                <div className="flex-1 space-y-4">
+                  <div>
+                    <h4 className="text-[#2d3748] text-base sm:text-lg">Chime's Thoughts</h4>
+                    <p className="text-sm text-[#64748b]">
+                      Mood: <span className="capitalize">{createdMoodLabel}</span> - Sentiment: <span className="capitalize">{createdSentiment}</span> - Confidence: {formatConfidence(createdConfidence)}
+                    </p>
+                  </div>
+
+                  {createdFeedback ? (
+                    <div className="space-y-3">
+                      <p className="text-[#4a5568] text-sm sm:text-base">{createdFeedback.message}</p>
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        <div className="rounded-2xl bg-white p-4">
+                          <div className="flex items-center gap-2 text-[#1a365d] mb-2">
+                            <MessageCircle className="w-4 h-4" />
+                            <span className="text-sm font-semibold">Reflection prompt</span>
+                          </div>
+                          <p className="text-sm text-[#4a5568]">{createdFeedback.reflectionPrompt}</p>
+                        </div>
+                        <div className="rounded-2xl bg-white p-4">
+                          <div className="flex items-center gap-2 text-[#065f46] mb-2">
+                            <Heart className="w-4 h-4" />
+                            <span className="text-sm font-semibold">Suggested action</span>
+                          </div>
+                          <p className="text-sm text-[#4a5568]">{createdFeedback.suggestedAction}</p>
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <p className="text-sm text-[#64748b]">Your journal was saved, but feedback is not available yet.</p>
+                  )}
+
+                  {feedbackUnavailable && (
+                    <div className="rounded-2xl border-2 border-[var(--child-yellow)] bg-[var(--child-yellow)]/20 p-3 text-sm text-[#744210]">
+                      Your entry was saved. Chime used gentle fallback feedback because AI feedback was unavailable or unsure.
+                    </div>
+                  )}
+
+                  <div className="flex flex-col sm:flex-row gap-2">
+                    <Button
+                      variant="child-mint"
+                      size="small"
+                      icon={<Sparkles className="w-4 h-4" fill="currentColor" />}
+                      onClick={() => onNavigate?.('story-mode')}
+                    >
+                      Create Story
+                    </Button>
+                    <Button variant="child-blue" size="small" onClick={onSave}>
+                      Back Home
+                    </Button>
+                  </div>
                 </div>
               </div>
             </Card>
