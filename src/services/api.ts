@@ -9,6 +9,7 @@ type ApiEnvelope<T> = {
 };
 
 type QueryValue = string | number | boolean | undefined | null;
+type UserType = "parent" | "child";
 
 export class ApiRequestError extends Error {
   statusCode?: number;
@@ -34,6 +35,16 @@ const buildQuery = (params?: Record<string, QueryValue>) => {
 
   const queryString = query.toString();
   return queryString ? `?${queryString}` : "";
+};
+
+const getStoredToken = (userType: UserType) => {
+  const key = userType === "parent" ? "charmchime_parent_token" : "charmchime_child_token";
+  return localStorage.getItem(key) || "";
+};
+
+const authHeaders = (userType: UserType) => {
+  const token = getStoredToken(userType);
+  return token ? { Authorization: `Bearer ${token}` } : {};
 };
 
 async function request<T>(
@@ -81,19 +92,42 @@ async function requestAudio(path: string, body: Record<string, unknown>): Promis
 
 export type Child = {
   id: string;
+  parentId?: string;
   name: string;
+  nickname?: string;
   email?: string;
   age: number;
+  avatar?: string;
+  preferences?: Record<string, unknown>;
   isVerified?: boolean;
   createdAt?: string;
+  updatedAt?: string;
 };
 
 export type Parent = {
   id: string;
+  name?: string;
   fullName: string;
   email: string;
+  phone?: string;
+  notificationPreferences?: Record<string, unknown>;
   isVerified?: boolean;
   createdAt?: string;
+  updatedAt?: string;
+};
+
+export type ChildProfileUpdate = {
+  name?: string;
+  nickname?: string;
+  age?: number;
+  avatar?: string;
+  preferences?: Record<string, unknown>;
+};
+
+export type ParentProfileUpdate = {
+  name?: string;
+  phone?: string;
+  notificationPreferences?: Record<string, unknown>;
 };
 
 export type OtpUserType = "parent" | "child";
@@ -165,6 +199,7 @@ export const api = {
     childSignup: (body: { name: string; email: string; age: string; pin: string; confirmPin: string }) =>
       request<{ child: Child }>("/v1/auth/child/signup", {
         method: "POST",
+        headers: authHeaders("parent"),
         body: JSON.stringify(body),
       }),
     parentLogin: (body: { email: string; password: string }) =>
@@ -194,6 +229,34 @@ export const api = {
       request<OtpResponse>("/v1/auth/resend-otp", {
         method: "POST",
         body: JSON.stringify(body),
+      }),
+  },
+  children: {
+    me: () =>
+      request<{ child: Child }>("/v1/children/me", {
+        headers: authHeaders("child"),
+      }),
+    updateMe: (body: ChildProfileUpdate) =>
+      request<{ child: Child }>("/v1/children/me", {
+        method: "PATCH",
+        headers: authHeaders("child"),
+        body: JSON.stringify(body),
+      }),
+  },
+  parents: {
+    me: () =>
+      request<{ parent: Parent }>("/v1/parents/me", {
+        headers: authHeaders("parent"),
+      }),
+    updateMe: (body: ParentProfileUpdate) =>
+      request<{ parent: Parent }>("/v1/parents/me", {
+        method: "PATCH",
+        headers: authHeaders("parent"),
+        body: JSON.stringify(body),
+      }),
+    children: () =>
+      request<{ children: Child[]; count: number }>("/v1/parents/me/children", {
+        headers: authHeaders("parent"),
       }),
   },
   journals: {
