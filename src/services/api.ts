@@ -156,10 +156,26 @@ export type Journal = {
   inputType: "text" | "voice";
   source: "manual" | "speech-to-text";
   moodStatus?: string;
+  moodAnalysisId?: string;
+  moodSentiment?: string;
+  moodConfidence?: number | null;
+  moodAnalyzedAt?: string;
+  aiFeedback?: JournalFeedback;
   storyStatus?: string;
   isDeleted?: boolean;
   createdAt: string;
   updatedAt: string;
+};
+
+export type JournalFeedback = {
+  message: string;
+  reflectionPrompt: string;
+  suggestedAction: string;
+  source?: string;
+  reason?: string;
+  mood?: string;
+  confidence?: number | null;
+  generatedAt?: string;
 };
 
 export type Story = {
@@ -181,12 +197,21 @@ export type MoodAnalysis = {
   mood?: string;
   emotion?: string;
   label?: string;
+  status?: string;
+  reason?: string;
   sentiment?: string;
   confidence?: number;
   emotions?: Record<string, number>;
   allScores?: { label: string; score: number }[];
   createdAt?: string;
   analyzedAt?: string;
+};
+
+export type JournalCreateResponse = {
+  journal: Journal;
+  mood?: MoodAnalysis | null;
+  aiFeedback?: JournalFeedback | null;
+  feedback?: JournalFeedback | null;
 };
 
 export const api = {
@@ -270,7 +295,7 @@ export const api = {
       inputType: "text" | "voice";
       source: "manual" | "speech-to-text";
     }) =>
-      request<{ journal: Journal }>("/v1/journals", {
+      request<JournalCreateResponse>("/v1/journals", {
         method: "POST",
         body: JSON.stringify(body),
       }),

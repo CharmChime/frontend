@@ -8,7 +8,20 @@ import { MobileMenuButton } from '../components/MobileMenuButton';
 import { LogoutConfirmation } from '../components/LogoutConfirmation';
 import { ArrowLeft, Volume2, VolumeX, Star, Share2, Trash2, Edit, Calendar, Heart, Sparkles, Wand2 } from 'lucide-react';
 import { api } from '../services/api';
-import { formatDate, htmlToText, moodColor, moodEmoji, readingTime, sanitizeRichTextHtml, wordCount } from '../services/journalAdapters';
+import {
+  formatConfidence,
+  formatDate,
+  getJournalConfidence,
+  getJournalFeedback,
+  getJournalMoodLabel,
+  getJournalSentiment,
+  htmlToText,
+  moodColor,
+  moodEmoji,
+  readingTime,
+  sanitizeRichTextHtml,
+  wordCount,
+} from '../services/journalAdapters';
 
 interface JournalDetailScreenProps {
   onBack: () => void;
@@ -65,13 +78,16 @@ export function JournalDetailScreen({
     api.journals
       .get(entryId)
       .then(({ journal }) => {
-        const mood = journal.moodStatus && journal.moodStatus !== 'pending' ? journal.moodStatus : 'thoughtful';
+        const mood = getJournalMoodLabel(journal);
         if (isMounted) {
           setEntry({
             id: journal.id,
             title: journal.title,
             content: journal.content,
             mood,
+            sentiment: getJournalSentiment(journal),
+            confidence: getJournalConfidence(journal),
+            aiFeedback: getJournalFeedback(journal),
             moodEmoji: moodEmoji(mood),
             date: formatDate(journal.createdAt),
             time: new Intl.DateTimeFormat(undefined, { hour: 'numeric', minute: '2-digit' }).format(new Date(journal.createdAt)),
@@ -279,6 +295,37 @@ export function JournalDetailScreen({
                   <Badge variant="child-mint">📖 {entry.readingTime} read</Badge>
                 </div>
               </div>
+            </div>
+          </Card>
+
+          <Card variant="child" className="bg-gradient-to-br from-white to-[var(--child-mint)]/20">
+            <div className="space-y-4">
+              <div className="flex flex-wrap items-center gap-2">
+                <Badge variant="child-blue">Mood: {entry.mood}</Badge>
+                <Badge variant="child-lavender">Sentiment: {entry.sentiment}</Badge>
+                <Badge variant="child-yellow">Confidence: {formatConfidence(entry.confidence)}</Badge>
+              </div>
+              {entry.aiFeedback ? (
+                <>
+                  <div className="flex items-center gap-2">
+                    <Heart className="w-5 h-5 text-[#065f46]" fill="currentColor" />
+                    <h3 className="text-[#2d3748] text-lg sm:text-xl">Chime's Thoughts</h3>
+                  </div>
+                  <p className="text-[#4a5568] text-sm sm:text-base">{entry.aiFeedback.message}</p>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <div className="rounded-2xl bg-white p-4">
+                      <p className="mb-2 text-sm font-semibold text-[#1a365d]">Reflection prompt</p>
+                      <p className="text-sm text-[#4a5568]">{entry.aiFeedback.reflectionPrompt}</p>
+                    </div>
+                    <div className="rounded-2xl bg-white p-4">
+                      <p className="mb-2 text-sm font-semibold text-[#065f46]">Suggested action</p>
+                      <p className="text-sm text-[#4a5568]">{entry.aiFeedback.suggestedAction}</p>
+                    </div>
+                  </div>
+                </>
+              ) : (
+                <p className="text-sm text-[#64748b]">AI feedback is not available for this journal yet.</p>
+              )}
             </div>
           </Card>
 

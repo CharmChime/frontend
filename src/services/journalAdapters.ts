@@ -1,4 +1,4 @@
-import type { Journal, MoodAnalysis } from './api';
+import type { Journal, JournalFeedback, MoodAnalysis } from './api';
 
 export const moodEmoji = (mood?: string) => {
   switch ((mood || '').toLowerCase()) {
@@ -13,6 +13,10 @@ export const moodEmoji = (mood?: string) => {
     case 'sad':
     case 'negative':
       return '😢';
+    case 'angry':
+      return '😠';
+    case 'worried':
+      return '😟';
     case 'creative':
       return '🎨';
     default:
@@ -27,6 +31,10 @@ export const moodColor = (mood?: string) => {
     case 'positive':
       return 'child-yellow';
     case 'excited':
+    case 'sad':
+    case 'angry':
+    case 'worried':
+    case 'negative':
       return 'child-peach';
     case 'calm':
       return 'child-mint';
@@ -56,7 +64,41 @@ export const formatShortDate = (value?: string) => {
 };
 
 export const getMoodLabel = (analysis?: MoodAnalysis) =>
-  analysis?.mood || analysis?.label || analysis?.sentiment || 'thoughtful';
+  analysis?.mood || analysis?.label || analysis?.emotion || analysis?.sentiment || 'thoughtful';
+
+export const getJournalMoodLabel = (journal?: Journal, analysis?: MoodAnalysis | null) => {
+  const detectedMood =
+    analysis?.label ||
+    analysis?.mood ||
+    analysis?.emotion ||
+    journal?.moodStatus ||
+    journal?.aiFeedback?.mood;
+
+  if (!detectedMood || detectedMood === 'pending' || detectedMood === 'failed') {
+    return 'thoughtful';
+  }
+
+  return detectedMood;
+};
+
+export const getJournalSentiment = (journal?: Journal, analysis?: MoodAnalysis | null) =>
+  analysis?.sentiment || journal?.moodSentiment || 'not available';
+
+export const getJournalConfidence = (journal?: Journal, analysis?: MoodAnalysis | null) => {
+  if (typeof analysis?.confidence === 'number') return analysis.confidence;
+  if (typeof journal?.moodConfidence === 'number') return journal.moodConfidence;
+  return undefined;
+};
+
+export const formatConfidence = (confidence?: number | null) => {
+  if (typeof confidence !== 'number') return 'Not available';
+  return `${Math.round(confidence * 100)}%`;
+};
+
+export const getJournalFeedback = (
+  journal?: Journal,
+  fallback?: JournalFeedback | null
+): JournalFeedback | undefined => journal?.aiFeedback || fallback || undefined;
 
 export const htmlToText = (content = '') => {
   const withLineBreaks = content

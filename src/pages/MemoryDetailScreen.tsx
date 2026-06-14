@@ -3,8 +3,9 @@ import { Card } from '../components/Card';
 import { Button } from '../components/Button';
 import { IconButton } from '../components/IconButton';
 import { Badge } from '../components/Badge';
-import { ArrowLeft, Edit, Trash2 } from 'lucide-react';
-import { sanitizeRichTextHtml } from '../services/journalAdapters';
+import { ArrowLeft, Edit, Trash2, Heart, MessageCircle } from 'lucide-react';
+import { formatConfidence, sanitizeRichTextHtml } from '../services/journalAdapters';
+import type { JournalFeedback } from '../services/api';
 
 export interface Memory {
   id: string;
@@ -19,6 +20,9 @@ export interface Memory {
   color: string;
   wordCount: number;
   readingTime: string;
+  sentiment?: string;
+  confidence?: number | null;
+  aiFeedback?: JournalFeedback;
 }
 
 interface MemoryDetailScreenProps {
@@ -63,12 +67,17 @@ export function MemoryDetailScreen({
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div className="space-y-2">
               <div className="flex flex-wrap items-center gap-2">
-                <Badge variant={memory.color}>{memory.tag}</Badge>
+                <Badge variant={memory.color as any}>{memory.tag}</Badge>
                 <span className="rounded-full bg-[#e2effb] px-3 py-1 text-sm text-[#1a365d]">
                   {memory.moodEmoji} {memory.mood}
                 </span>
               </div>
-              <p className="text-sm text-[#475569]">{memory.date} · {memory.time} · {memory.readingTime}</p>
+              <p className="text-sm text-[#475569]">
+                {memory.date} - {memory.time} - {memory.readingTime}
+              </p>
+              <p className="text-sm text-[#475569]">
+                Sentiment: <span className="capitalize">{memory.sentiment || 'not available'}</span> - Confidence: {formatConfidence(memory.confidence)}
+              </p>
             </div>
             <div className="flex items-center gap-2 text-sm text-[#1a365d]/80">
               <span>{memory.wordCount} words</span>
@@ -81,6 +90,29 @@ export function MemoryDetailScreen({
               dangerouslySetInnerHTML={{ __html: sanitizeRichTextHtml(memory.content) }}
             />
           </div>
+
+          {memory.aiFeedback && (
+            <div className="rounded-3xl border border-[#bbf7d0] bg-[#f0fdf4] p-5">
+              <h3 className="mb-3 text-lg font-semibold text-[#065f46]">Chime's Thoughts</h3>
+              <p className="mb-4 text-sm text-[#166534]">{memory.aiFeedback.message}</p>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div className="rounded-2xl bg-white p-4">
+                  <div className="mb-2 flex items-center gap-2 text-[#1a365d]">
+                    <MessageCircle className="h-4 w-4" />
+                    <span className="text-sm font-semibold">Reflection prompt</span>
+                  </div>
+                  <p className="text-sm text-[#475569]">{memory.aiFeedback.reflectionPrompt}</p>
+                </div>
+                <div className="rounded-2xl bg-white p-4">
+                  <div className="mb-2 flex items-center gap-2 text-[#065f46]">
+                    <Heart className="h-4 w-4" />
+                    <span className="text-sm font-semibold">Suggested action</span>
+                  </div>
+                  <p className="text-sm text-[#475569]">{memory.aiFeedback.suggestedAction}</p>
+                </div>
+              </div>
+            </div>
+          )}
         </Card>
 
         <div className="mt-6 flex gap-3 flex-wrap">

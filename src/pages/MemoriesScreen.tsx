@@ -10,7 +10,18 @@ import { LogoutConfirmation } from '../components/LogoutConfirmation';
 import { MemoryDetailScreen, type Memory } from './MemoryDetailScreen';
 import { ArrowLeft, Search, Filter, Calendar, Star, Heart, BookOpen, Sparkles, ChevronDown, Volume2, Smile, Edit, Trash2 } from 'lucide-react';
 import { api, type Journal } from '../services/api';
-import { formatDate, getMoodLabel, htmlToText, moodColor, moodEmoji, readingTime, wordCount } from '../services/journalAdapters';
+import {
+  formatDate,
+  getJournalConfidence,
+  getJournalFeedback,
+  getJournalMoodLabel,
+  getJournalSentiment,
+  htmlToText,
+  moodColor,
+  moodEmoji,
+  readingTime,
+  wordCount,
+} from '../services/journalAdapters';
 
 interface MemoriesScreenProps {
   onBack: () => void;
@@ -76,7 +87,7 @@ export function MemoriesScreen({ onBack, childName = 'Friend', childId, onNaviga
   const allMemories: Memory[] = useMemo(
     () =>
       journals.map((journal) => {
-        const mood = getMoodLabel();
+        const mood = getJournalMoodLabel(journal);
         return {
           id: journal.id,
           title: journal.title,
@@ -90,6 +101,9 @@ export function MemoriesScreen({ onBack, childName = 'Friend', childId, onNaviga
           color: moodColor(mood),
           wordCount: wordCount(journal.content),
           readingTime: readingTime(journal.content),
+          sentiment: getJournalSentiment(journal),
+          confidence: getJournalConfidence(journal),
+          aiFeedback: getJournalFeedback(journal),
         };
       }),
     [journals]
