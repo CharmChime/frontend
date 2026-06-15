@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Card } from '../components/Card';
 import { Button } from '../components/Button';
 import { Badge } from '../components/Badge';
@@ -6,7 +6,7 @@ import { IconButton } from '../components/IconButton';
 import { ChildSidebar } from '../components/ChildSidebar';
 import { MobileMenuButton } from '../components/MobileMenuButton';
 import { LogoutConfirmation } from '../components/LogoutConfirmation';
-import { ArrowLeft, Save, Sparkles, Mic, MicOff, Bold, Italic, Underline, Type, AlignLeft, AlignCenter, AlignRight, List, ListOrdered, Heart, MessageCircle, CheckCircle } from 'lucide-react';
+import { ArrowLeft, Save, Sparkles, Mic, MicOff, Bold, Italic, Underline, Type, AlignLeft, AlignCenter, AlignRight, List, ListOrdered, Heart, MessageCircle, CheckCircle, Volume2, VolumeX, RefreshCw, RotateCcw } from 'lucide-react';
 import { api, type JournalCreateResponse } from '../services/api';
 import {
   formatConfidence,
@@ -43,10 +43,13 @@ export function JournalEntryScreen({ onBack, onSave, childName = 'Friend', child
   const [saveStage, setSaveStage] = useState<'idle' | 'saving' | 'analyzing' | 'feedback'>('idle');
   const [saveResult, setSaveResult] = useState<JournalCreateResponse | null>(null);
   const [error, setError] = useState('');
+  const [feedbackVoiceStatus, setFeedbackVoiceStatus] = useState<'idle' | 'loading' | 'playing' | 'ready' | 'unavailable'>('idle');
   const editorRef = useRef<HTMLDivElement>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
   const mediaStreamRef = useRef<MediaStream | null>(null);
+  const feedbackAudioRef = useRef<HTMLAudioElement | null>(null);
+  const feedbackAudioUrlRef = useRef<string | null>(null);
 
   const handleLogout = () => {
     setShowLogoutConfirm(false);
@@ -87,6 +90,15 @@ export function JournalEntryScreen({ onBack, onSave, childName = 'Friend', child
 
     applyEditorCommand(commandMap[alignment]);
   };
+
+  useEffect(() => {
+    return () => {
+      feedbackAudioRef.current?.pause();
+      if (feedbackAudioUrlRef.current) {
+        URL.revokeObjectURL(feedbackAudioUrlRef.current);
+      }
+    };
+  }, []);
 
   const sanitizeEditorHtml = (html: string) =>
     html
@@ -196,6 +208,13 @@ export function JournalEntryScreen({ onBack, onSave, childName = 'Friend', child
   const handleSave = async () => {
     setError('');
     setSaveResult(null);
+    feedbackAudioRef.current?.pause();
+    feedbackAudioRef.current = null;
+    if (feedbackAudioUrlRef.current) {
+      URL.revokeObjectURL(feedbackAudioUrlRef.current);
+      feedbackAudioUrlRef.current = null;
+    }
+    setFeedbackVoiceStatus('idle');
 
     if (!childId) {
       setError('Please log in as a child before saving an entry.');
@@ -246,6 +265,54 @@ export function JournalEntryScreen({ onBack, onSave, childName = 'Friend', child
   const feedbackUnavailable =
     Boolean(saveResult) &&
     (!createdFeedback || createdFeedback.source === 'safe-fallback' || createdMood?.status === 'failed');
+
+  const getCreatedFeedbackText = () => {
+    if (!createdFeedback) return '';
+
+    return [
+      createdFeedback.message,
+      createdFeedback.reflectionPrompt ? `Reflection prompt: ${createdFeedback.reflectionPrompt}` : '',
+      createdFeedback.suggestedAction ? `Suggested action: ${createdFeedback.suggestedAction}` : '',
+    ]
+      .filter(Boolean)
+      .join('\n\n');
+  };
+
+  const handlePlayCreatedFeedback = async () => {
+    const feedbackText = getCreatedFeedbackText();
+    if (!feedbackText) return;
+
+    if (feedbackAudioRef.current && feedbackVoiceStatus === 'playing') {
+      feedbackAudioRef.current.pause();
+      feedbackAudioRef.current.currentTime = 0;
+      setFeedbackVoiceStatus('ready');
+      return;
+    }
+
+    setFeedbackVoiceStatus('loading');
+
+    try {
+      if (!feedbackAudioRef.current) {
+        const audioBlob = await api.voice.feedbackTts({ text: feedbackText });
+        if (feedbackAudioUrlRef.current) {
+          URL.revokeObjectURL(feedbackAudioUrlRef.current);
+        }
+        const audioUrl = URL.createObjectURL(audioBlob);
+        const audio = new Audio(audioUrl);
+        feedbackAudioUrlRef.current = audioUrl;
+        feedbackAudioRef.current = audio;
+
+        audio.onended = () => setFeedbackVoiceStatus('ready');
+        audio.onerror = () => setFeedbackVoiceStatus('unavailable');
+      }
+
+      feedbackAudioRef.current.currentTime = 0;
+      await feedbackAudioRef.current.play();
+      setFeedbackVoiceStatus('playing');
+    } catch {
+      setFeedbackVoiceStatus('unavailable');
+    }
+  };
 
   const aiPrompts = [
     "Tell me about the best part of your day! 🌟",
@@ -538,7 +605,31 @@ export function JournalEntryScreen({ onBack, onSave, childName = 'Friend', child
                 </div>
                 <div className="flex-1 space-y-4">
                   <div>
-                    <h4 className="text-[#2d3748] text-base sm:text-lg">Chime's Thoughts</h4>
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                      <h4 className="text-[#2d3748] text-base sm:text-lg">Chime's Thoughts</h4>
+                      {createdFeedback && (
+                        <Button
+                          variant={feedbackVoiceStatus === 'unavailable' ? 'child-slate' : 'child-mint'}
+                          size="small"
+                          icon={
+                            feedbackVoiceStatus === 'loading' ? <RefreshCw className="w-4 h-4 animate-spin" /> :
+                            feedbackVoiceStatus === 'playing' ? <VolumeX className="w-4 h-4" /> :
+                            feedbackVoiceStatus === 'ready' ? <RotateCcw className="w-4 h-4" /> :
+                            <Volume2 className="w-4 h-4" />
+                          }
+                          onClick={handlePlayCreatedFeedback}
+                          disabled={feedbackVoiceStatus === 'loading'}
+                        >
+                          {feedbackVoiceStatus === 'loading'
+                            ? 'Generating Voice...'
+                            : feedbackVoiceStatus === 'playing'
+                            ? 'Stop Audio'
+                            : feedbackVoiceStatus === 'ready'
+                            ? 'Replay Feedback'
+                            : 'Listen to Feedback'}
+                        </Button>
+                      )}
+                    </div>
                     <p className="text-sm text-[#64748b]">
                       Mood: <span className="capitalize">{createdMoodLabel}</span> - Sentiment: <span className="capitalize">{createdSentiment}</span> - Confidence: {formatConfidence(createdConfidence)}
                     </p>
@@ -571,6 +662,12 @@ export function JournalEntryScreen({ onBack, onSave, childName = 'Friend', child
                   {feedbackUnavailable && (
                     <div className="rounded-2xl border-2 border-[var(--child-yellow)] bg-[var(--child-yellow)]/20 p-3 text-sm text-[#744210]">
                       Your entry was saved. Chime used gentle fallback feedback because AI feedback was unavailable or unsure.
+                    </div>
+                  )}
+
+                  {feedbackVoiceStatus === 'unavailable' && (
+                    <div className="rounded-2xl border-2 border-[var(--child-blue)] bg-[var(--child-blue)]/15 p-3 text-sm text-[#1a365d]">
+                      Feedback voice is temporarily unavailable. Chime's text is still visible.
                     </div>
                   )}
 
