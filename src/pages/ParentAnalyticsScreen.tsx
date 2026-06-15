@@ -7,6 +7,9 @@ import { BarChart as RechartsBar, Bar, LineChart, Line, AreaChart, Area, XAxis, 
 import { TrendingUp, TrendingDown, Calendar, Download } from 'lucide-react';
 import { LogoutConfirmation } from '../components/LogoutConfirmation';
 import { api } from '../services/api';
+import { ParentChildSelector } from '../components/ParentChildSelector';
+import { useParentChildSelection } from '../hooks/useParentChildSelection';
+import { LoadingState } from '../components/LoadingState';
 
 interface ParentAnalyticsScreenProps {
   childName: string;
@@ -19,11 +22,26 @@ export function ParentAnalyticsScreen({ childName, parentId, onNavigate, onLogou
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [timeRange, setTimeRange] = useState<'week' | 'month' | 'year'>('month');
   const [analytics, setAnalytics] = useState<any | null>(null);
+  const [isLoadingAnalytics, setIsLoadingAnalytics] = useState(false);
+  const {
+    children,
+    selectedChild,
+    selectedChildId,
+    setSelectedChildId,
+    isLoadingChildren,
+    childrenError,
+    hasNoLinkedChildren,
+  } = useParentChildSelection();
 
   useEffect(() => {
-    if (!parentId) return;
-    api.dashboard.analytics(parentId).then(setAnalytics).catch(() => setAnalytics(null));
-  }, [parentId]);
+    if (!parentId || isLoadingChildren || hasNoLinkedChildren) return;
+    setIsLoadingAnalytics(true);
+    api.dashboard
+      .analytics(parentId, { childId: selectedChildId || undefined })
+      .then(setAnalytics)
+      .catch(() => setAnalytics(null))
+      .finally(() => setIsLoadingAnalytics(false));
+  }, [parentId, selectedChildId, isLoadingChildren, hasNoLinkedChildren]);
 
   const handleLogout = () => {
     setShowLogoutConfirm(false);
@@ -48,38 +66,26 @@ export function ParentAnalyticsScreen({ childName, parentId, onNavigate, onLogou
     URL.revokeObjectURL(url);
   };
 
-  // Mock data
-  const sentimentTrend = analytics?.sentimentTrend?.length ? analytics.sentimentTrend : [
-    { date: 'Jan 1', positive: 85, neutral: 10, negative: 5 },
-    { date: 'Jan 8', positive: 78, neutral: 15, negative: 7 },
-    { date: 'Jan 15', positive: 92, neutral: 5, negative: 3 },
-    { date: 'Jan 22', positive: 88, neutral: 8, negative: 4 },
-    { date: 'Jan 29', positive: 95, neutral: 3, negative: 2 },
-  ];
-
-  const emotionalProfile = analytics?.emotionalProfile?.length ? analytics.emotionalProfile : [
-    { emotion: 'Happy', value: 85 },
-    { emotion: 'Calm', value: 75 },
-    { emotion: 'Excited', value: 70 },
-    { emotion: 'Creative', value: 80 },
-    { emotion: 'Curious', value: 90 },
-    { emotion: 'Confident', value: 65 },
-  ];
-
-  const writingActivity = analytics?.writingActivity?.weeklyActivity?.length ? analytics.writingActivity.weeklyActivity : [
-    { week: 'Week 1', entries: 5, words: 450, time: 35 },
-    { week: 'Week 2', entries: 7, words: 680, time: 52 },
-    { week: 'Week 3', entries: 6, words: 550, time: 45 },
-    { week: 'Week 4', entries: 8, words: 720, time: 58 },
-  ];
-
-  const topThemes = analytics?.mostDiscussedThemes?.length ? analytics.mostDiscussedThemes : [
-    { theme: 'School', count: 24, trend: 'up' },
-    { theme: 'Friends', count: 18, trend: 'up' },
-    { theme: 'Family', count: 15, trend: 'stable' },
-    { theme: 'Hobbies', count: 12, trend: 'up' },
-    { theme: 'Sports', count: 8, trend: 'down' },
-  ];
+  const displayedChildName = selectedChild?.nickname || selectedChild?.name || childName;
+  const sentimentTrend = analytics?.sentimentTrend?.data || [];
+  const emotionalProfile = analytics?.emotionalProfile?.topEmotions?.length
+    ? analytics.emotionalProfile.topEmotions.map((item: any) => ({
+        emotion: item.emotion,
+        value: item.percentage || item.count,
+      }))
+    : [];
+  const writingActivity = (analytics?.writingActivity?.weeklyActivity || []).map((item: any) => ({
+    week: item.label,
+    entries: item.count,
+    words: analytics?.writingActivity?.averageWordsPerEntry || 0,
+  }));
+  const topThemes = (analytics?.mostDiscussedThemes || []).map((theme: any) => ({
+    ...theme,
+    trend: 'stable',
+  }));
+  const noJournalData = !analytics || (analytics?.writingActivity?.totalEntries || 0) === 0;
+  const noMoodData = analytics?.emotionalProfile?.status === 'not_available';
+  const isParentDataLoading = isLoadingChildren || isLoadingAnalytics;
 
   return (
     <div className="min-h-screen bg-[var(--parent-bg)] flex">
@@ -97,9 +103,15 @@ export function ParentAnalyticsScreen({ childName, parentId, onNavigate, onLogou
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <div>
                 <h1 className="text-[#2d3748] text-xl sm:text-2xl lg:text-3xl">Advanced Analytics</h1>
-                <p className="text-[#64748b] mt-1 text-sm sm:text-base">Deep insights into {childName}'s emotional journey</p>
+                <p className="text-[#64748b] mt-1 text-sm sm:text-base">Deep insights into {displayedChildName}'s emotional journey</p>
               </div>
               <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+                <ParentChildSelector
+                  childrenList={children}
+                  selectedChildId={selectedChildId}
+                  onChange={setSelectedChildId}
+                  isLoading={isLoadingChildren}
+                />
                 <div className="flex gap-2">
                   <button
                     onClick={() => setTimeRange('week')}
@@ -142,6 +154,21 @@ export function ParentAnalyticsScreen({ childName, parentId, onNavigate, onLogou
 
         {/* Content */}
         <div className="p-4 sm:p-6 lg:p-8 space-y-4 sm:space-y-6">
+          {(childrenError || hasNoLinkedChildren || (!isParentDataLoading && noJournalData)) && (
+            <Card variant="parent">
+              <p className="text-sm text-[#64748b]">
+                {childrenError ||
+                  (hasNoLinkedChildren
+                    ? 'No linked child accounts found yet.'
+                    : 'No journal data is available for this child yet.')}
+              </p>
+            </Card>
+          )}
+
+          {isParentDataLoading ? (
+            <LoadingState message="Loading analytics data..." variant="parent" />
+          ) : (
+            <>
           {/* Sentiment Trend */}
           <Card variant="parent">
             <div className="space-y-4">
@@ -184,7 +211,7 @@ export function ParentAnalyticsScreen({ childName, parentId, onNavigate, onLogou
                   </ResponsiveContainer>
                 </div>
                 <p className="text-sm text-[#64748b]">
-                  Well-balanced emotional expression with strong curiosity and happiness indicators.
+                  {noMoodData ? 'No mood data is available yet.' : 'Emotional profile comes from analyzed journal entries.'}
                 </p>
               </div>
             </Card>
@@ -208,7 +235,9 @@ export function ParentAnalyticsScreen({ childName, parentId, onNavigate, onLogou
                   </ResponsiveContainer>
                 </div>
                 <p className="text-sm text-[#64748b]">
-                  Increasing engagement with consistent growth in both frequency and depth.
+                  {writingActivity.length
+                    ? 'Writing activity is based on analyzed journal history.'
+                    : 'No writing activity is available yet.'}
                 </p>
               </div>
             </Card>
@@ -219,7 +248,7 @@ export function ParentAnalyticsScreen({ childName, parentId, onNavigate, onLogou
             <div className="space-y-4">
               <h3 className="text-[#2d3748] text-lg sm:text-xl">Most Discussed Themes</h3>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 sm:gap-4">
-                {topThemes.map((theme, index) => (
+              {topThemes.length ? topThemes.map((theme, index) => (
                   <div key={theme.theme} className="p-4 bg-gray-50 rounded-xl">
                     <div className="flex items-start justify-between mb-2">
                       <span className="text-2xl">#{index + 1}</span>
@@ -229,7 +258,9 @@ export function ParentAnalyticsScreen({ childName, parentId, onNavigate, onLogou
                     <h4 className="text-[#2d3748] mb-1">{theme.theme}</h4>
                     <p className="text-sm text-[#64748b]">{theme.count} mentions</p>
                   </div>
-                ))}
+                )) : (
+                  <p className="text-sm text-[#64748b]">No story themes are available yet.</p>
+                )}
               </div>
             </div>
           </Card>
@@ -238,26 +269,34 @@ export function ParentAnalyticsScreen({ childName, parentId, onNavigate, onLogou
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <Card variant="parent" padding="medium">
               <div className="text-center">
-                <div className="text-3xl sm:text-4xl mb-2">📈</div>
-                <h4 className="text-[#2d3748] mb-1 text-base sm:text-lg">Positive Trajectory</h4>
-                <p className="text-sm text-[#64748b]">15% increase in positive sentiment this month</p>
+                <TrendingUp className="w-8 h-8 mx-auto mb-2 text-[var(--parent-teal)]" />
+                <h4 className="text-[#2d3748] mb-1 text-base sm:text-lg">Dominant Sentiment</h4>
+                <p className="text-sm text-[#64748b] capitalize">
+                  {analytics?.emotionalProfile?.dominantSentiment || 'Not available'}
+                </p>
               </div>
             </Card>
             <Card variant="parent" padding="medium">
               <div className="text-center">
-                <div className="text-3xl sm:text-4xl mb-2">✍️</div>
-                <h4 className="text-[#2d3748] mb-1 text-base sm:text-lg">Growing Expression</h4>
-                <p className="text-sm text-[#64748b]">Average word count increased by 45%</p>
+                <Download className="w-8 h-8 mx-auto mb-2 text-[var(--parent-teal)]" />
+                <h4 className="text-[#2d3748] mb-1 text-base sm:text-lg">Average Words</h4>
+                <p className="text-sm text-[#64748b]">
+                  {analytics?.writingActivity?.averageWordsPerEntry || 0} words per entry
+                </p>
               </div>
             </Card>
             <Card variant="parent" padding="medium">
               <div className="text-center">
-                <div className="text-3xl sm:text-4xl mb-2">🎯</div>
-                <h4 className="text-[#2d3748] mb-1 text-base sm:text-lg">Consistent Habit</h4>
-                <p className="text-sm text-[#64748b]">Writing 6.5 times per week on average</p>
+                <Calendar className="w-8 h-8 mx-auto mb-2 text-[var(--parent-teal)]" />
+                <h4 className="text-[#2d3748] mb-1 text-base sm:text-lg">Total Entries</h4>
+                <p className="text-sm text-[#64748b]">
+                  {analytics?.writingActivity?.totalEntries || 0} journal entries
+                </p>
               </div>
             </Card>
           </div>
+            </>
+          )}
         </div>
       </main>
 

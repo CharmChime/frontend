@@ -5,6 +5,9 @@ import { Badge } from '../components/Badge';
 import { Activity, Clock, PenLine, BookOpen, Sparkles, Filter, Search } from 'lucide-react';
 import { LogoutConfirmation } from '../components/LogoutConfirmation';
 import { api } from '../services/api';
+import { ParentChildSelector } from '../components/ParentChildSelector';
+import { useParentChildSelection } from '../hooks/useParentChildSelection';
+import { LoadingState } from '../components/LoadingState';
 
 interface ParentActivityScreenProps {
   childName: string;
@@ -15,89 +18,44 @@ interface ParentActivityScreenProps {
 
 export function ParentActivityScreen({ childName, parentId, onNavigate, onLogout }: ParentActivityScreenProps) {
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
-  const [filterType, setFilterType] = useState<'all' | 'journal' | 'story' | 'achievement'>('all');
+  const [filterType, setFilterType] = useState<'all' | 'journal' | 'story' | 'mood'>('all');
   const [activityData, setActivityData] = useState<any | null>(null);
+  const [isLoadingActivity, setIsLoadingActivity] = useState(false);
+  const {
+    children,
+    selectedChild,
+    selectedChildId,
+    setSelectedChildId,
+    isLoadingChildren,
+    childrenError,
+    hasNoLinkedChildren,
+  } = useParentChildSelection();
 
   useEffect(() => {
-    if (!parentId) return;
-    api.dashboard.activity(parentId).then(setActivityData).catch(() => setActivityData(null));
-  }, [parentId]);
+    if (!parentId || isLoadingChildren || hasNoLinkedChildren) return;
+    setIsLoadingActivity(true);
+    api.dashboard
+      .activity(parentId, {
+        childId: selectedChildId || undefined,
+        type: filterType === 'all' ? undefined : filterType,
+      })
+      .then(setActivityData)
+      .catch(() => setActivityData(null))
+      .finally(() => setIsLoadingActivity(false));
+  }, [parentId, selectedChildId, filterType, isLoadingChildren, hasNoLinkedChildren]);
 
   const handleLogout = () => {
     setShowLogoutConfirm(false);
     onLogout();
   };
 
+  const displayedChildName = selectedChild?.nickname || selectedChild?.name || childName;
+  const isParentDataLoading = isLoadingChildren || isLoadingActivity;
   const activities = activityData?.activities?.length ? activityData.activities.map((activity: any) => ({
     ...activity,
     details: activity.details || activity.description,
     time: activity.time || (activity.createdAt ? new Date(activity.createdAt).toLocaleString() : 'Recently'),
-  })) : [
-    {
-      type: 'journal',
-      title: 'New Journal Entry: "My Amazing Day at School"',
-      mood: 'happy',
-      time: '2 hours ago',
-      duration: '12 min',
-      wordCount: 245,
-      details: 'Completed entry with mood tracking and voice-to-text'
-    },
-    {
-      type: 'achievement',
-      title: 'Achievement Unlocked: "Week Warrior"',
-      time: '2 hours ago',
-      details: 'Earned for maintaining a 7-day writing streak'
-    },
-    {
-      type: 'story',
-      title: 'Created Story: "The Space Adventure"',
-      time: '5 hours ago',
-      duration: '18 min',
-      wordCount: 380,
-      details: 'Collaborated with AI to create a space-themed story'
-    },
-    {
-      type: 'journal',
-      title: 'New Journal Entry: "Learning About Planets"',
-      mood: 'excited',
-      time: 'Yesterday, 4:30 PM',
-      duration: '8 min',
-      wordCount: 156,
-      details: 'Completed entry with mood tracking'
-    },
-    {
-      type: 'achievement',
-      title: 'Achievement Unlocked: "Word Wizard"',
-      time: 'Yesterday, 4:35 PM',
-      details: 'Earned for writing over 1000 words total'
-    },
-    {
-      type: 'journal',
-      title: 'New Journal Entry: "Fun with Friends"',
-      mood: 'happy',
-      time: 'Yesterday, 11:20 AM',
-      duration: '10 min',
-      wordCount: 198,
-      details: 'Completed entry with mood tracking'
-    },
-    {
-      type: 'story',
-      title: 'Created Story: "The Magical Garden"',
-      time: '2 days ago, 3:15 PM',
-      duration: '15 min',
-      wordCount: 312,
-      details: 'Collaborated with AI to create a fantasy story'
-    },
-    {
-      type: 'journal',
-      title: 'New Journal Entry: "Rainy Day Thoughts"',
-      mood: 'calm',
-      time: '2 days ago, 10:45 AM',
-      duration: '9 min',
-      wordCount: 167,
-      details: 'Completed entry with mood tracking'
-    },
-  ];
+  })) : [];
 
   const filteredActivities = filterType === 'all' 
     ? activities 
@@ -149,12 +107,20 @@ export function ParentActivityScreen({ childName, parentId, onNavigate, onLogout
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div>
                   <h1 className="text-[#2d3748] text-xl sm:text-2xl lg:text-3xl">Activity Log</h1>
-                  <p className="text-[#64748b] mt-1 text-sm sm:text-base">Track {childName}'s journaling activity and milestones</p>
+                  <p className="text-[#64748b] mt-1 text-sm sm:text-base">Track {displayedChildName}'s journaling activity and milestones</p>
                 </div>
-                <Badge variant="parent-teal">
-                  <Activity className="w-4 h-4 mr-1" />
-                  {filteredActivities.length} Activities
-                </Badge>
+                <div className="flex flex-wrap items-center gap-2">
+                  <ParentChildSelector
+                    childrenList={children}
+                    selectedChildId={selectedChildId}
+                    onChange={setSelectedChildId}
+                    isLoading={isLoadingChildren}
+                  />
+                  <Badge variant="parent-teal">
+                    <Activity className="w-4 h-4 mr-1" />
+                    {filteredActivities.length} Activities
+                  </Badge>
+                </div>
               </div>
 
               {/* Filters */}
@@ -191,14 +157,14 @@ export function ParentActivityScreen({ childName, parentId, onNavigate, onLogout
                   Stories
                 </button>
                 <button
-                  onClick={() => setFilterType('achievement')}
+                  onClick={() => setFilterType('mood')}
                   className={`px-3 sm:px-4 py-2 rounded-lg text-sm transition-colors ${
-                    filterType === 'achievement'
+                    filterType === 'mood'
                       ? 'bg-[var(--parent-teal)] text-white'
                       : 'bg-gray-100 text-[#64748b] hover:bg-gray-200'
                   }`}
                 >
-                  Achievements
+                  Mood
                 </button>
               </div>
             </div>
@@ -207,30 +173,42 @@ export function ParentActivityScreen({ childName, parentId, onNavigate, onLogout
 
         {/* Content */}
         <div className="p-4 sm:p-6 lg:p-8">
+          {(childrenError || hasNoLinkedChildren) && (
+            <Card variant="parent" className="mb-6">
+              <p className="text-sm text-[#64748b]">
+                {childrenError || 'No linked child accounts found yet.'}
+              </p>
+            </Card>
+          )}
+
+          {isParentDataLoading ? (
+            <LoadingState message="Loading activity data..." variant="parent" />
+          ) : (
+            <>
           {/* Summary Stats */}
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-6">
             <Card variant="parent" padding="medium">
               <div className="text-center">
-                <p className="text-2xl sm:text-3xl mb-1">24</p>
+                <p className="text-2xl sm:text-3xl mb-1">{activityData?.summary?.journalEntries || 0}</p>
                 <p className="text-xs sm:text-sm text-[#64748b]">Journal Entries</p>
               </div>
             </Card>
             <Card variant="parent" padding="medium">
               <div className="text-center">
-                <p className="text-2xl sm:text-3xl mb-1">8</p>
+                <p className="text-2xl sm:text-3xl mb-1">{activityData?.summary?.storiesCreated || 0}</p>
                 <p className="text-xs sm:text-sm text-[#64748b]">Stories Created</p>
               </div>
             </Card>
             <Card variant="parent" padding="medium">
               <div className="text-center">
-                <p className="text-2xl sm:text-3xl mb-1">12</p>
-                <p className="text-xs sm:text-sm text-[#64748b]">Achievements</p>
+                <p className="text-2xl sm:text-3xl mb-1">{activityData?.summary?.moodAnalyses || 0}</p>
+                <p className="text-xs sm:text-sm text-[#64748b]">Mood Analyses</p>
               </div>
             </Card>
             <Card variant="parent" padding="medium">
               <div className="text-center">
-                <p className="text-2xl sm:text-3xl mb-1">45m</p>
-                <p className="text-xs sm:text-sm text-[#64748b]">Avg Session</p>
+                <p className="text-2xl sm:text-3xl mb-1">{activityData?.summary?.totalActivities || 0}</p>
+                <p className="text-xs sm:text-sm text-[#64748b]">Total Activities</p>
               </div>
             </Card>
           </div>
@@ -239,7 +217,7 @@ export function ParentActivityScreen({ childName, parentId, onNavigate, onLogout
           <Card variant="parent">
             <h3 className="text-[#2d3748] mb-4 text-lg sm:text-xl">Recent Activity</h3>
             <div className="space-y-3">
-              {filteredActivities.map((activity, index) => (
+              {filteredActivities.length ? filteredActivities.map((activity, index) => (
                 <div key={index} className="flex gap-3 sm:gap-4 p-3 sm:p-4 bg-gray-50 rounded-xl hover:bg-gray-100 transition-colors">
                   {/* Icon */}
                   <div className={`w-10 h-10 sm:w-12 sm:h-12 rounded-xl flex items-center justify-center flex-shrink-0 ${getActivityColor(activity.type)}`}>
@@ -277,9 +255,13 @@ export function ParentActivityScreen({ childName, parentId, onNavigate, onLogout
                     </div>
                   </div>
                 </div>
-              ))}
+              )) : (
+                <p className="text-sm text-[#64748b]">No activity is available for this selection yet.</p>
+              )}
             </div>
           </Card>
+            </>
+          )}
         </div>
       </main>
 

@@ -3,9 +3,12 @@ import { ParentSidebar } from '../components/ParentSidebar';
 import { Card } from '../components/Card';
 import { Button } from '../components/Button';
 import { Badge } from '../components/Badge';
-import { FileText, Download, Calendar, Mail, TrendingUp, BarChart3, PieChart, Eye } from 'lucide-react';
+import { FileText, Download, Calendar, BarChart3, PieChart, Eye } from 'lucide-react';
 import { LogoutConfirmation } from '../components/LogoutConfirmation';
 import { api } from '../services/api';
+import { ParentChildSelector } from '../components/ParentChildSelector';
+import { useParentChildSelection } from '../hooks/useParentChildSelection';
+import { LoadingState } from '../components/LoadingState';
 
 interface ParentReportsScreenProps {
   childName: string;
@@ -14,29 +17,38 @@ interface ParentReportsScreenProps {
   onLogout: () => void;
 }
 
+const formatDateInput = (date: Date) => date.toISOString().slice(0, 10);
+
 export function ParentReportsScreen({ childName, parentId, onNavigate, onLogout }: ParentReportsScreenProps) {
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [reportData, setReportData] = useState<any | null>(null);
   const [reportMessage, setReportMessage] = useState('');
-  const [scheduledReports, setScheduledReports] = useState([
-    {
-      frequency: 'Weekly',
-      nextDelivery: 'Dec 29, 2024',
-      email: 'sarah.johnson@email.com',
-      enabled: true
-    },
-    {
-      frequency: 'Monthly',
-      nextDelivery: 'Jan 1, 2025',
-      email: 'sarah.johnson@email.com',
-      enabled: true
-    },
-  ]);
-
+  const [isLoadingReport, setIsLoadingReport] = useState(false);
+  const [isDownloading, setIsDownloading] = useState(false);
+  const [customFrom, setCustomFrom] = useState(() => {
+    const date = new Date();
+    date.setDate(date.getDate() - 30);
+    return formatDateInput(date);
+  });
+  const [customTo, setCustomTo] = useState(() => formatDateInput(new Date()));
+  const {
+    children,
+    selectedChild,
+    selectedChildId,
+    setSelectedChildId,
+    isLoadingChildren,
+    childrenError,
+    hasNoLinkedChildren,
+  } = useParentChildSelection();
   useEffect(() => {
-    if (!parentId) return;
-    api.dashboard.reports(parentId).then(setReportData).catch(() => setReportData(null));
-  }, [parentId]);
+    if (!parentId || isLoadingChildren || hasNoLinkedChildren) return;
+    setIsLoadingReport(true);
+    api.reports
+      .summary({ childId: selectedChildId || undefined })
+      .then(setReportData)
+      .catch(() => setReportData(null))
+      .finally(() => setIsLoadingReport(false));
+  }, [parentId, selectedChildId, isLoadingChildren, hasNoLinkedChildren]);
 
   const handleLogout = () => {
     setShowLogoutConfirm(false);
@@ -47,32 +59,30 @@ export function ParentReportsScreen({ childName, parentId, onNavigate, onLogout 
     setReportMessage(`${report.title}: ${report.description}`);
   };
 
-  const handleDownloadReport = (report: any) => {
-    const content = JSON.stringify(
-      {
-        report,
-        summary: reportData?.summary,
-        moodSummary: reportData?.moodSummary,
-        generatedAt: new Date().toISOString(),
-      },
-      null,
-      2
-    );
-    const url = URL.createObjectURL(new Blob([content], { type: 'application/json' }));
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `${report.type || 'report'}-summary.json`;
-    link.click();
-    URL.revokeObjectURL(url);
-    setReportMessage(`${report.title} downloaded.`);
-  };
+  const handleDownloadReport = async (report: any) => {
+    setIsDownloading(true);
+    setReportMessage('');
 
-  const toggleScheduledReport = (index: number) => {
-    setScheduledReports((current) =>
-      current.map((report, reportIndex) =>
-        reportIndex === index ? { ...report, enabled: !report.enabled } : report
-      )
-    );
+    try {
+      const isCustom = report.type === 'custom';
+      const pdfBlob = await api.reports.pdf({
+        childId: selectedChildId || undefined,
+        range: isCustom ? 'custom' : report.type || 'weekly',
+        from: isCustom ? customFrom : undefined,
+        to: isCustom ? customTo : undefined,
+      });
+      const url = URL.createObjectURL(pdfBlob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = 'charmchime-report.pdf';
+      link.click();
+      URL.revokeObjectURL(url);
+      setReportMessage(`${report.title} downloaded as PDF.`);
+    } catch (err) {
+      setReportMessage(err instanceof Error ? err.message : 'Could not download PDF report.');
+    } finally {
+      setIsDownloading(false);
+    }
   };
 
   const reportIconByType: Record<string, React.ReactNode> = {
@@ -81,66 +91,32 @@ export function ParentReportsScreen({ childName, parentId, onNavigate, onLogout 
     custom: <PieChart className="w-6 h-6" />,
   };
 
-  const reports = reportData?.availableReports?.length ? reportData.availableReports.map((report: any) => ({
+  const displayedChildName = selectedChild?.nickname || selectedChild?.name || childName;
+  const hasReportData = (reportData?.summary?.totalJournals || 0) > 0 || (reportData?.summary?.totalStories || 0) > 0;
+  const isParentDataLoading = isLoadingChildren || isLoadingReport;
+  const reports = [
+    { type: 'weekly', title: 'Weekly Summary Report' },
+    { type: 'monthly', title: 'Monthly Wellbeing Report' },
+    { type: 'quarterly', title: 'Quarterly Progress Report' },
+    { type: 'custom', title: 'Custom Date Range Report' },
+  ].map((report) => ({
     ...report,
     description:
-      report.description ||
-      (report.type === 'custom'
-        ? 'Configure a custom date range report from current backend data'
-        : `Generated from current ${report.type} activity and wellbeing data`),
+      report.type === 'custom'
+        ? 'Generate a PDF for the custom date range below'
+        : `Download a ${report.type} PDF from backend report data`,
     icon: reportIconByType[report.type] || <FileText className="w-6 h-6" />,
-    lastGenerated: report.lastGenerated || 'Current data',
-    status: report.status || 'Ready',
+    lastGenerated: reportData?.dateRange?.endDate
+      ? new Date(reportData.dateRange.endDate).toLocaleDateString()
+      : 'Current data',
+    status: hasReportData ? 'Ready' : 'No data yet',
     color:
       report.type === 'monthly'
         ? 'bg-purple-100 text-purple-600'
         : report.type === 'custom'
           ? 'bg-green-100 text-green-600'
           : 'bg-blue-100 text-blue-600',
-  })) : [
-    {
-      title: 'Weekly Summary Report',
-      description: 'Overview of mood patterns, activity, and key insights from the past week',
-      type: 'weekly',
-      icon: <Calendar className="w-6 h-6" />,
-      lastGenerated: 'Dec 22, 2024',
-      status: 'Ready',
-      color: 'bg-blue-100 text-blue-600'
-    },
-    {
-      title: 'Monthly Wellbeing Report',
-      description: 'Comprehensive analysis of emotional trends and developmental patterns',
-      type: 'monthly',
-      icon: <TrendingUp className="w-6 h-6" />,
-      lastGenerated: 'Dec 1, 2024',
-      status: 'Ready',
-      color: 'bg-green-100 text-green-600'
-    },
-    {
-      title: 'Quarterly Progress Report',
-      description: 'Long-term trends, achievements, and growth indicators over 3 months',
-      type: 'quarterly',
-      icon: <BarChart3 className="w-6 h-6" />,
-      lastGenerated: 'Nov 30, 2024',
-      status: 'Ready',
-      color: 'bg-purple-100 text-purple-600'
-    },
-    {
-      title: 'Custom Date Range Report',
-      description: 'Generate a report for any specific time period you choose',
-      type: 'custom',
-      icon: <PieChart className="w-6 h-6" />,
-      lastGenerated: 'Create new',
-      status: 'Configure',
-      color: 'bg-orange-100 text-orange-600'
-    },
-  ];
-
-  const recentDownloads = [
-    { name: 'Weekly_Report_Dec_15-22.pdf', date: 'Dec 22, 2024', size: '2.4 MB' },
-    { name: 'Monthly_Report_November.pdf', date: 'Dec 1, 2024', size: '5.8 MB' },
-    { name: 'Weekly_Report_Dec_8-15.pdf', date: 'Dec 15, 2024', size: '2.1 MB' },
-  ];
+  }));
 
   return (
     <div className="min-h-screen bg-[var(--parent-bg)] flex">
@@ -158,23 +134,68 @@ export function ParentReportsScreen({ childName, parentId, onNavigate, onLogout 
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <div>
                 <h1 className="text-[#2d3748] text-xl sm:text-2xl lg:text-3xl">Reports & Analytics</h1>
-                <p className="text-[#64748b] mt-1 text-sm sm:text-base">Generate and manage detailed reports for {childName}</p>
+                <p className="text-[#64748b] mt-1 text-sm sm:text-base">Generate and manage detailed reports for {displayedChildName}</p>
               </div>
-              <Button
-                variant="parent-teal"
-                size="medium"
-                icon={<Download className="w-5 h-5" />}
-                onClick={() => handleDownloadReport({ title: 'All Reports', type: 'all', description: 'Complete report bundle' })}
-              >
-                <span className="hidden sm:inline">Download All</span>
-                <span className="sm:hidden">Download</span>
-              </Button>
+              <div className="flex flex-wrap items-center gap-2">
+                <ParentChildSelector
+                  childrenList={children}
+                  selectedChildId={selectedChildId}
+                  onChange={setSelectedChildId}
+                  isLoading={isLoadingChildren}
+                />
+                <Button
+                  variant="parent-teal"
+                  size="medium"
+                  icon={<Download className="w-5 h-5" />}
+                  onClick={() => handleDownloadReport({ title: 'Weekly Summary Report', type: 'weekly' })}
+                  disabled={isDownloading || hasNoLinkedChildren}
+                >
+                  <span className="hidden sm:inline">{isDownloading ? 'Downloading...' : 'Download PDF'}</span>
+                  <span className="sm:hidden">Download</span>
+                </Button>
+              </div>
             </div>
           </div>
         </header>
 
         {/* Content */}
         <div className="p-4 sm:p-6 lg:p-8 space-y-4 sm:space-y-6">
+          {(childrenError || hasNoLinkedChildren || (!isParentDataLoading && !hasReportData)) && (
+            <Card variant="parent">
+              <p className="text-sm text-[#64748b]">
+                {childrenError ||
+                  (hasNoLinkedChildren
+                    ? 'No linked child accounts found yet.'
+                    : 'No report data is available yet. Reports will include activity after journals, mood analyses, or stories exist.')}
+              </p>
+            </Card>
+          )}
+
+          {isParentDataLoading ? (
+            <LoadingState message="Loading report data..." variant="parent" />
+          ) : (
+            <>
+          {reportData?.summary && (
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+              <Card variant="parent" padding="medium">
+                <p className="text-2xl sm:text-3xl mb-1">{reportData.summary.totalJournals || 0}</p>
+                <p className="text-xs sm:text-sm text-[#64748b]">Journals</p>
+              </Card>
+              <Card variant="parent" padding="medium">
+                <p className="text-2xl sm:text-3xl mb-1">{reportData.summary.totalStories || 0}</p>
+                <p className="text-xs sm:text-sm text-[#64748b]">Stories</p>
+              </Card>
+              <Card variant="parent" padding="medium">
+                <p className="text-2xl sm:text-3xl mb-1">{reportData.summary.totalMoodAnalyses || 0}</p>
+                <p className="text-xs sm:text-sm text-[#64748b]">Mood Analyses</p>
+              </Card>
+              <Card variant="parent" padding="medium">
+                <p className="text-2xl sm:text-3xl mb-1 capitalize">{reportData.summary.dominantSentiment || 'N/A'}</p>
+                <p className="text-xs sm:text-sm text-[#64748b]">Dominant Sentiment</p>
+              </Card>
+            </div>
+          )}
+
           {/* Available Reports */}
           <div>
             <h2 className="text-[#2d3748] mb-4 text-lg sm:text-xl">Available Reports</h2>
@@ -197,7 +218,13 @@ export function ParentReportsScreen({ childName, parentId, onNavigate, onLogout 
                           <Button variant="parent-slate" size="small" icon={<Eye className="w-4 h-4" />} onClick={() => handleViewReport(report)}>
                             <span className="hidden sm:inline">View</span>
                           </Button>
-                          <Button variant="parent-teal" size="small" icon={<Download className="w-4 h-4" />} onClick={() => handleDownloadReport(report)}>
+                          <Button
+                            variant="parent-teal"
+                            size="small"
+                            icon={<Download className="w-4 h-4" />}
+                            onClick={() => handleDownloadReport(report)}
+                            disabled={isDownloading || hasNoLinkedChildren}
+                          >
                             <span className="hidden sm:inline">Download</span>
                           </Button>
                         </div>
@@ -209,76 +236,17 @@ export function ParentReportsScreen({ childName, parentId, onNavigate, onLogout 
             </div>
           </div>
 
-          {/* Two Column Layout */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
-            {/* Scheduled Reports */}
-            <Card variant="parent">
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <Mail className="w-5 h-5 text-[var(--parent-teal)]" />
-                    <h3 className="text-[#2d3748] text-lg sm:text-xl">Scheduled Email Reports</h3>
-                  </div>
-                </div>
-                <div className="space-y-3">
-                  {scheduledReports.map((scheduled, index) => (
-                    <div key={index} className="p-3 sm:p-4 bg-gray-50 rounded-xl">
-                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-2">
-                        <div>
-                          <h4 className="text-[#2d3748] mb-1 text-sm sm:text-base">{scheduled.frequency} Report</h4>
-                          <p className="text-xs sm:text-sm text-[#64748b]">Next: {scheduled.nextDelivery}</p>
-                        </div>
-                        <button
-                          onClick={() => toggleScheduledReport(index)}
-                          className={`
-                            w-14 h-8 rounded-full transition-all duration-200 flex-shrink-0
-                            ${scheduled.enabled ? 'bg-[var(--parent-teal)]' : 'bg-gray-300'}
-                          `}
-                        >
-                          <div className={`
-                            w-6 h-6 bg-white rounded-full shadow-md transition-transform duration-200 mt-1
-                            ${scheduled.enabled ? 'translate-x-7' : 'translate-x-1'}
-                          `} />
-                        </button>
-                      </div>
-                      <p className="text-xs text-[#64748b]">📧 {scheduled.email}</p>
-                    </div>
-                  ))}
-                  <Button variant="parent-slate" size="medium" className="w-full" onClick={() => setReportMessage('Email report settings updated locally.')}>
-                    Configure Email Reports
-                  </Button>
-                </div>
+          <Card variant="parent" className="bg-blue-50">
+            <div className="flex items-start gap-3">
+              <FileText className="w-6 h-6 text-blue-600 flex-shrink-0 mt-0.5" />
+              <div className="space-y-2">
+                <h3 className="text-[#2d3748] text-lg sm:text-xl">Backend Report Status</h3>
+                <p className="text-xs sm:text-sm text-[#64748b]">
+                  PDF reports are generated from the selected child and current backend data. Scheduled email delivery and download history are not connected yet, so they are not shown as active features.
+                </p>
               </div>
-            </Card>
-
-            {/* Recent Downloads */}
-            <Card variant="parent">
-              <div className="space-y-4">
-                <div className="flex items-center gap-2">
-                  <Download className="w-5 h-5 text-[var(--parent-teal)]" />
-                  <h3 className="text-[#2d3748] text-lg sm:text-xl">Recent Downloads</h3>
-                </div>
-                <div className="space-y-2">
-                  {recentDownloads.map((download, index) => (
-                    <div key={index} className="flex items-center justify-between p-3 bg-gray-50 rounded-xl hover:bg-gray-100 transition-colors cursor-pointer">
-                      <div className="flex items-center gap-3 flex-1 min-w-0">
-                        <FileText className="w-5 h-5 text-red-500 flex-shrink-0" />
-                        <div className="min-w-0">
-                          <p className="text-xs sm:text-sm text-[#2d3748] truncate">{download.name}</p>
-                          <div className="flex items-center gap-2 text-xs text-[#64748b]">
-                            <span>{download.date}</span>
-                            <span>•</span>
-                            <span>{download.size}</span>
-                          </div>
-                        </div>
-                      </div>
-                      <Download className="w-4 h-4 text-[#64748b] flex-shrink-0 ml-2" />
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </Card>
-          </div>
+            </div>
+          </Card>
 
           {/* Report Configuration */}
           <Card variant="parent">
@@ -289,38 +257,33 @@ export function ParentReportsScreen({ childName, parentId, onNavigate, onLogout 
                   <label className="block text-[#4a5568] mb-2 text-sm">Start Date</label>
                   <input
                     type="date"
+                    value={customFrom}
+                    onChange={(event) => setCustomFrom(event.target.value)}
                     className="w-full px-4 py-3 bg-gray-50 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[var(--parent-teal)] text-[#2d3748]"
-                    defaultValue="2024-12-01"
                   />
                 </div>
                 <div>
                   <label className="block text-[#4a5568] mb-2 text-sm">End Date</label>
                   <input
                     type="date"
+                    value={customTo}
+                    onChange={(event) => setCustomTo(event.target.value)}
                     className="w-full px-4 py-3 bg-gray-50 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[var(--parent-teal)] text-[#2d3748]"
-                    defaultValue="2024-12-29"
                   />
                 </div>
               </div>
-              <div>
-                <label className="block text-[#4a5568] mb-2 text-sm">Include Sections</label>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                  {['Mood Analysis', 'Activity Summary', 'Writing Trends', 'Achievements', 'AI Insights', 'Recommendations'].map((section) => (
-                    <label key={section} className="flex items-center gap-2 p-3 bg-gray-50 rounded-lg cursor-pointer hover:bg-gray-100">
-                      <input type="checkbox" defaultChecked className="rounded text-[var(--parent-teal)] focus:ring-[var(--parent-teal)]" />
-                      <span className="text-sm text-[#2d3748]">{section}</span>
-                    </label>
-                  ))}
-                </div>
-              </div>
+              <p className="text-xs sm:text-sm text-[#64748b]">
+                Custom PDFs include the backend report sections currently available for the selected child.
+              </p>
               <Button
                 variant="parent-teal"
                 size="large"
                 icon={<FileText className="w-5 h-5" />}
                 className="w-full sm:w-auto"
-                onClick={() => setReportMessage('Custom report settings are ready. Backend report summary refreshed from current data.')}
+                onClick={() => handleDownloadReport({ title: 'Custom Date Range Report', type: 'custom' })}
+                disabled={isDownloading || hasNoLinkedChildren}
               >
-                Generate Custom Report
+                {isDownloading ? 'Generating PDF...' : 'Generate Custom PDF'}
               </Button>
               {reportMessage && (
                 <p className="text-sm text-[var(--parent-teal)]">{reportMessage}</p>
@@ -342,6 +305,8 @@ export function ParentReportsScreen({ childName, parentId, onNavigate, onLogout 
               </div>
             </div>
           </Card>
+            </>
+          )}
         </div>
       </main>
 

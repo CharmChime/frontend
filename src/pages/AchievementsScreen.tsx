@@ -5,6 +5,7 @@ import { Badge } from '../components/Badge';
 import { ChildSidebar } from '../components/ChildSidebar';
 import { MobileMenuButton } from '../components/MobileMenuButton';
 import { LogoutConfirmation } from '../components/LogoutConfirmation';
+import { LoadingState } from '../components/LoadingState';
 import { ArrowLeft, Trophy, Star, Heart, Flame, BookOpen, Sparkles, Target, Award, Zap } from 'lucide-react';
 import { api, type Journal, type MoodAnalysis, type Story } from '../services/api';
 
@@ -379,11 +380,13 @@ export function AchievementsScreen({ onBack, childName = 'Friend', childId, onNa
             <p className="text-[#64748b] text-sm sm:text-base">Look at all the amazing things you've done!</p>
           </div>
 
-          {(isLoading || error) && (
+          {isLoading && (
+            <LoadingState message="Loading your achievements..." variant="child" />
+          )}
+
+          {error && (
             <Card variant="child" className={error ? 'border-2 border-red-200 bg-red-50' : ''}>
-              <p className={`text-center text-sm ${error ? 'text-red-700' : 'text-[#64748b]'}`}>
-                {error || 'Loading your real achievements...'}
-              </p>
+              <p className="text-center text-sm text-red-700">{error}</p>
             </Card>
           )}
 

@@ -5,6 +5,9 @@ import { Badge } from '../components/Badge';
 import { Brain, Sparkles, TrendingUp, AlertCircle, CheckCircle, Lightbulb, Heart, MessageCircle } from 'lucide-react';
 import { LogoutConfirmation } from '../components/LogoutConfirmation';
 import { api } from '../services/api';
+import { ParentChildSelector } from '../components/ParentChildSelector';
+import { useParentChildSelection } from '../hooks/useParentChildSelection';
+import { LoadingState } from '../components/LoadingState';
 
 interface ParentInsightsScreenProps {
   childName: string;
@@ -16,11 +19,26 @@ interface ParentInsightsScreenProps {
 export function ParentInsightsScreen({ childName, parentId, onNavigate, onLogout }: ParentInsightsScreenProps) {
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [insightData, setInsightData] = useState<any | null>(null);
+  const [isLoadingInsights, setIsLoadingInsights] = useState(false);
+  const {
+    children,
+    selectedChild,
+    selectedChildId,
+    setSelectedChildId,
+    isLoadingChildren,
+    childrenError,
+    hasNoLinkedChildren,
+  } = useParentChildSelection();
 
   useEffect(() => {
-    if (!parentId) return;
-    api.dashboard.insights(parentId).then(setInsightData).catch(() => setInsightData(null));
-  }, [parentId]);
+    if (!parentId || isLoadingChildren || hasNoLinkedChildren) return;
+    setIsLoadingInsights(true);
+    api.dashboard
+      .insights(parentId, { childId: selectedChildId || undefined })
+      .then(setInsightData)
+      .catch(() => setInsightData(null))
+      .finally(() => setIsLoadingInsights(false));
+  }, [parentId, selectedChildId, isLoadingChildren, hasNoLinkedChildren]);
 
   const handleLogout = () => {
     setShowLogoutConfirm(false);
@@ -35,6 +53,9 @@ export function ParentInsightsScreen({ childName, parentId, onNavigate, onLogout
     opportunity: <Lightbulb className="w-6 h-6" />,
   };
 
+  const displayedChildName = selectedChild?.nickname || selectedChild?.name || childName;
+  const noMoodData = insightData?.overallWellbeing?.status === 'not_available';
+  const isParentDataLoading = isLoadingChildren || isLoadingInsights;
   const insights = insightData?.keyInsights?.length ? insightData.keyInsights.map((insight: any) => ({
     ...insight,
     type: insight.type === 'mood' ? 'positive' : insight.type,
@@ -44,77 +65,23 @@ export function ParentInsightsScreen({ childName, parentId, onNavigate, onLogout
         ? Math.round(insight.confidence <= 1 ? insight.confidence * 100 : insight.confidence)
         : 0,
     date: insight.date || 'Current',
-  })) : [
-    {
-      type: 'positive',
-      icon: <Heart className="w-6 h-6" />,
-      title: 'Strong Social Connections',
-      description: `${childName} frequently writes about friends and social activities, indicating healthy peer relationships. Recent entries show excitement about collaborative school projects.`,
-      confidence: 95,
-      date: 'Today'
-    },
-    {
-      type: 'opportunity',
-      icon: <Lightbulb className="w-6 h-6" />,
-      title: 'Growing Creative Interest',
-      description: 'Detected increased mentions of art, drawing, and creative projects. Consider encouraging artistic activities or providing creative resources.',
-      confidence: 88,
-      date: 'Yesterday'
-    },
-    {
-      type: 'neutral',
-      icon: <MessageCircle className="w-6 h-6" />,
-      title: 'Academic Engagement',
-      description: 'Writing shows consistent interest in science topics, particularly space and animals. Emotional tone remains positive when discussing learning.',
-      confidence: 92,
-      date: '2 days ago'
-    },
-    {
-      type: 'attention',
-      icon: <AlertCircle className="w-6 h-6" />,
-      title: 'Slight Sleep Pattern Concern',
-      description: 'Recent entries mention feeling tired in the morning. Consider reviewing bedtime routines and screen time before sleep.',
-      confidence: 78,
-      date: '3 days ago'
-    },
-  ];
+  })) : [];
 
   const recommendations = insightData?.recommendations?.length ? insightData.recommendations.map((item: any) => ({
     ...item,
     icon: item.icon || <CheckCircle className="w-5 h-5" />,
-  })) : [
-    {
-      category: 'Activity',
-      suggestion: 'Art & Creativity Workshop',
-      reason: `Based on ${childName}'s recent interests in creative expression and drawing`,
-      icon: '🎨'
-    },
-    {
-      category: 'Reading',
-      suggestion: 'Space & Astronomy Books',
-      reason: 'Aligns with demonstrated curiosity about science and space topics',
-      icon: '📚'
-    },
-    {
-      category: 'Social',
-      suggestion: 'Group Activities',
-      reason: 'Strong social engagement patterns suggest enjoyment of collaborative experiences',
-      icon: '👥'
-    },
-    {
-      category: 'Routine',
-      suggestion: 'Earlier Bedtime Routine',
-      reason: 'May help address mentions of morning tiredness',
-      icon: '😴'
-    },
-  ];
+    category: item.category || item.type || 'Guidance',
+    suggestion: item.suggestion || item.title,
+    reason: item.reason || item.description,
+  })) : [];
 
-  const emotionalTrends = insightData?.emotionalTrends?.data?.length ? insightData.emotionalTrends.data : [
-    { mood: 'Happy', percentage: 65, change: '+5%', trend: 'up' },
-    { mood: 'Excited', percentage: 20, change: '+3%', trend: 'up' },
-    { mood: 'Calm', percentage: 10, change: '-2%', trend: 'down' },
-    { mood: 'Worried', percentage: 5, change: '-1%', trend: 'down' },
-  ];
+  const emotionalTrends = insightData?.emotionalTrends?.data?.length
+    ? insightData.emotionalTrends.data.flatMap((week: any) => [
+        { mood: `${week.label} positive`, percentage: week.positive || 0, change: '', trend: 'up' },
+        { mood: `${week.label} neutral`, percentage: week.neutral || 0, change: '', trend: 'stable' },
+        { mood: `${week.label} negative`, percentage: week.negative || 0, change: '', trend: 'down' },
+      ])
+    : [];
 
   return (
     <div className="min-h-screen bg-[var(--parent-bg)] flex">
@@ -135,18 +102,41 @@ export function ParentInsightsScreen({ childName, parentId, onNavigate, onLogout
                   <Brain className="w-6 h-6 sm:w-8 sm:h-8 text-[var(--parent-teal)]" />
                   <h1 className="text-[#2d3748] text-xl sm:text-2xl lg:text-3xl">AI-Powered Insights</h1>
                 </div>
-                <p className="text-[#64748b] mt-1 text-sm sm:text-base">Intelligent analysis of {childName}'s emotional wellbeing</p>
+                <p className="text-[#64748b] mt-1 text-sm sm:text-base">Intelligent analysis of {displayedChildName}'s emotional wellbeing</p>
               </div>
-              <Badge variant="parent-teal" className="w-fit">
-                <Sparkles className="w-4 h-4 mr-1" />
-                AI Analysis
-              </Badge>
+              <div className="flex flex-wrap items-center gap-2">
+                <ParentChildSelector
+                  childrenList={children}
+                  selectedChildId={selectedChildId}
+                  onChange={setSelectedChildId}
+                  isLoading={isLoadingChildren}
+                />
+                <Badge variant="parent-teal" className="w-fit">
+                  <Sparkles className="w-4 h-4 mr-1" />
+                  AI Analysis
+                </Badge>
+              </div>
             </div>
           </div>
         </header>
 
         {/* Content */}
         <div className="p-4 sm:p-6 lg:p-8 space-y-4 sm:space-y-6">
+          {(childrenError || hasNoLinkedChildren || (!isParentDataLoading && noMoodData)) && (
+            <Card variant="parent">
+              <p className="text-sm text-[#64748b]">
+                {childrenError ||
+                  (hasNoLinkedChildren
+                    ? 'No linked child accounts found yet.'
+                    : 'No mood data is available yet. AI insights will appear after journal analysis.')}
+              </p>
+            </Card>
+          )}
+
+          {isParentDataLoading ? (
+            <LoadingState message="Loading AI insights..." variant="parent" />
+          ) : (
+            <>
           {/* Overall Status */}
           <Card variant="parent">
             <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
@@ -154,10 +144,10 @@ export function ParentInsightsScreen({ childName, parentId, onNavigate, onLogout
                 <CheckCircle className="w-8 h-8 sm:w-10 sm:h-10 text-green-600" />
               </div>
               <div className="flex-1">
-                <h3 className="text-[#2d3748] mb-2 text-lg sm:text-xl">Overall Wellbeing: Excellent</h3>
+                <h3 className="text-[#2d3748] mb-2 text-lg sm:text-xl">Overall Wellbeing: {insightData?.overallWellbeing?.label || 'Not available'}</h3>
                 <p className="text-[#64748b] text-sm sm:text-base">
-                  {childName} is demonstrating healthy emotional development with strong positive sentiment, active social engagement, 
-                  and growing creative expression. No concerning patterns detected in recent entries.
+                  {insightData?.overallWellbeing?.message ||
+                    'Insights will appear after linked children have analyzed journal entries.'}
                 </p>
               </div>
             </div>
@@ -167,7 +157,7 @@ export function ParentInsightsScreen({ childName, parentId, onNavigate, onLogout
           <div>
             <h2 className="text-[#2d3748] mb-4 text-lg sm:text-xl">Key Insights</h2>
             <div className="space-y-3 sm:space-y-4">
-              {insights.map((insight, index) => (
+              {insights.length ? insights.map((insight, index) => (
                 <Card key={index} variant="parent" className={`
                   ${insight.type === 'positive' ? 'border-l-4 border-green-500' : ''}
                   ${insight.type === 'attention' ? 'border-l-4 border-yellow-500' : ''}
@@ -195,7 +185,11 @@ export function ParentInsightsScreen({ childName, parentId, onNavigate, onLogout
                     </div>
                   </div>
                 </Card>
-              ))}
+              )) : (
+                <Card variant="parent">
+                  <p className="text-sm text-[#64748b]">No key insights are available yet.</p>
+                </Card>
+              )}
             </div>
           </div>
 
@@ -206,7 +200,7 @@ export function ParentInsightsScreen({ childName, parentId, onNavigate, onLogout
               <div className="space-y-4">
                 <h3 className="text-[#2d3748] text-lg sm:text-xl">Emotional Trends</h3>
                 <div className="space-y-3">
-                  {emotionalTrends.map((trend) => (
+                  {emotionalTrends.length ? emotionalTrends.map((trend) => (
                     <div key={trend.mood} className="space-y-2">
                       <div className="flex items-center justify-between text-sm">
                         <span className="text-[#2d3748]">{trend.mood}</span>
@@ -229,7 +223,9 @@ export function ParentInsightsScreen({ childName, parentId, onNavigate, onLogout
                         />
                       </div>
                     </div>
-                  ))}
+                  )) : (
+                    <p className="text-sm text-[#64748b]">No emotional trend data is available yet.</p>
+                  )}
                 </div>
               </div>
             </Card>
@@ -242,7 +238,7 @@ export function ParentInsightsScreen({ childName, parentId, onNavigate, onLogout
                   <h3 className="text-[#2d3748] text-lg sm:text-xl">AI Recommendations</h3>
                 </div>
                 <div className="space-y-3">
-                  {recommendations.map((rec, index) => (
+                  {recommendations.length ? recommendations.map((rec, index) => (
                     <div key={index} className="p-3 sm:p-4 bg-gradient-to-r from-[var(--parent-teal)]/5 to-blue-50 rounded-xl">
                       <div className="flex items-start gap-3">
                         <span className="text-2xl flex-shrink-0">{rec.icon}</span>
@@ -255,7 +251,9 @@ export function ParentInsightsScreen({ childName, parentId, onNavigate, onLogout
                         </div>
                       </div>
                     </div>
-                  ))}
+                  )) : (
+                    <p className="text-sm text-[#64748b]">No AI recommendations are available yet.</p>
+                  )}
                 </div>
               </div>
             </Card>
@@ -278,6 +276,8 @@ export function ParentInsightsScreen({ childName, parentId, onNavigate, onLogout
               </div>
             </div>
           </Card>
+            </>
+          )}
         </div>
       </main>
 

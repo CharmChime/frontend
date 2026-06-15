@@ -129,6 +129,31 @@ async function requestAudio(path: string, body: Record<string, unknown>): Promis
   return response.blob();
 }
 
+async function requestBlob(
+  path: string,
+  options: RequestInit = {},
+  params?: Record<string, QueryValue>
+): Promise<Blob> {
+  const response = await fetch(`${API_BASE_URL}${path}${buildQuery(params)}`, {
+    ...options,
+    headers: {
+      ...(options.headers || {}),
+    },
+  });
+
+  if (!response.ok) {
+    const payload = await response.json().catch(() => null);
+    throw new ApiRequestError(
+      payload?.message || response.statusText || "Download failed",
+      response.status,
+      payload?.errors || [],
+      payload?.code
+    );
+  }
+
+  return response.blob();
+}
+
 export type Child = {
   id: string;
   parentId?: string;
@@ -382,14 +407,27 @@ export const api = {
       }),
   },
   dashboard: {
-    overview: (parentId: string) => request<any>(`/v1/dashboard/parent/${parentId}/overview`),
-    analytics: (parentId: string) => request<any>(`/v1/dashboard/parent/${parentId}/analytics`),
-    insights: (parentId: string) => request<any>(`/v1/dashboard/parent/${parentId}/ai-insights`),
-    activity: (parentId: string, params: { type?: string } = {}) =>
-      request<any>(`/v1/dashboard/parent/${parentId}/activity-log`, {}, params),
-    reports: (parentId: string, params: { range?: string } = {}) =>
-      request<any>(`/v1/dashboard/parent/${parentId}/reports`, {}, params),
-    children: (parentId: string) =>
-      request<{ children: Child[] }>(`/v1/dashboard/parent/${parentId}/children`),
+    overview: (_parentId?: string, params: { childId?: string } = {}) =>
+      request<any>("/v1/dashboard/overview", { headers: authHeaders("parent") }, params),
+    analytics: (_parentId?: string, params: { childId?: string } = {}) =>
+      request<any>("/v1/dashboard/analytics", { headers: authHeaders("parent") }, params),
+    insights: (_parentId?: string, params: { childId?: string } = {}) =>
+      request<any>("/v1/dashboard/ai-insights", { headers: authHeaders("parent") }, params),
+    activity: (
+      _parentId?: string,
+      params: { type?: string; childId?: string; limit?: number } = {}
+    ) => request<any>("/v1/dashboard/activity-log", { headers: authHeaders("parent") }, params),
+    reports: (
+      _parentId?: string,
+      params: { range?: string; childId?: string; from?: string; to?: string } = {}
+    ) => request<any>("/v1/dashboard/reports", { headers: authHeaders("parent") }, params),
+    children: (_parentId?: string) =>
+      request<{ children: Child[] }>("/v1/dashboard/children", { headers: authHeaders("parent") }),
+  },
+  reports: {
+    summary: (params: { childId?: string; from?: string; to?: string; range?: string } = {}) =>
+      request<any>("/v1/reports/summary", { headers: authHeaders("parent") }, params),
+    pdf: (params: { childId?: string; from?: string; to?: string; range?: string } = {}) =>
+      requestBlob("/v1/reports/pdf", { headers: authHeaders("parent") }, params),
   },
 };

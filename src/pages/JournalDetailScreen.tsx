@@ -6,6 +6,7 @@ import { Badge } from '../components/Badge';
 import { ChildSidebar } from '../components/ChildSidebar';
 import { MobileMenuButton } from '../components/MobileMenuButton';
 import { LogoutConfirmation } from '../components/LogoutConfirmation';
+import { LoadingState } from '../components/LoadingState';
 import { ArrowLeft, Volume2, VolumeX, Star, Share2, Trash2, Edit, Calendar, Heart, Sparkles, Wand2, RefreshCw, RotateCcw } from 'lucide-react';
 import { api } from '../services/api';
 import {
@@ -320,10 +321,13 @@ export function JournalDetailScreen({
   if (isLoading || error || !entry) {
     return (
       <div className="min-h-screen bg-[var(--child-bg)] flex items-center justify-center p-6">
-        <Card variant="child" className="max-w-lg text-center">
+        {isLoading ? (
+          <LoadingState message="Loading your memory..." variant="child" className="max-w-lg" />
+        ) : (
+          <Card variant="child" className="max-w-lg text-center">
           <div className="space-y-4">
             <h2 className="text-[#2d3748]">
-              {isLoading ? 'Loading your memory...' : error ? 'Memory unavailable' : 'Memory not found'}
+              {error ? 'Memory unavailable' : 'Memory not found'}
             </h2>
             <p className="text-[#64748b]">
               {error || 'This journal entry could not be found.'}
@@ -332,7 +336,8 @@ export function JournalDetailScreen({
               Back to memories
             </Button>
           </div>
-        </Card>
+          </Card>
+        )}
       </div>
     );
   }
@@ -629,28 +634,28 @@ export function JournalDetailScreen({
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             <Card variant="child" padding="small">
               <div className="text-center">
-                <span className="text-2xl mb-1 block">👀</span>
-                <p className="text-lg sm:text-xl text-[#2d3748]">12</p>
-                <p className="text-xs sm:text-sm text-[#64748b]">Times Read</p>
+                <Calendar className="w-6 h-6 mx-auto mb-1 text-[#237e8f]" />
+                <p className="text-lg sm:text-xl text-[#2d3748]">{entry.date}</p>
+                <p className="text-xs sm:text-sm text-[#64748b]">Date</p>
               </div>
             </Card>
             <Card variant="child" padding="small">
               <div className="text-center">
-                <span className="text-2xl mb-1 block">💭</span>
+                <Edit className="w-6 h-6 mx-auto mb-1 text-[#237e8f]" />
                 <p className="text-lg sm:text-xl text-[#2d3748]">{entry.wordCount}</p>
                 <p className="text-xs sm:text-sm text-[#64748b]">Words</p>
               </div>
             </Card>
             <Card variant="child" padding="small">
               <div className="text-center">
-                <span className="text-2xl mb-1 block">⏱️</span>
-                <p className="text-lg sm:text-xl text-[#2d3748]">12m</p>
-                <p className="text-xs sm:text-sm text-[#64748b]">Time Spent</p>
+                <Sparkles className="w-6 h-6 mx-auto mb-1 text-[#237e8f]" />
+                <p className="text-lg sm:text-xl text-[#2d3748]">{entry.readingTime}</p>
+                <p className="text-xs sm:text-sm text-[#64748b]">Read Time</p>
               </div>
             </Card>
             <Card variant="child" padding="small">
               <div className="text-center">
-                <span className="text-2xl mb-1 block">❤️</span>
+                <Heart className="w-6 h-6 mx-auto mb-1 text-[#237e8f]" />
                 <p className="text-lg sm:text-xl text-[#2d3748] capitalize">{entry.mood}</p>
                 <p className="text-xs sm:text-sm text-[#64748b]">Mood</p>
               </div>

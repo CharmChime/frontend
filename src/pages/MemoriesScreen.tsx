@@ -7,6 +7,7 @@ import { Input } from '../components/Input';
 import { ChildSidebar } from '../components/ChildSidebar';
 import { MobileMenuButton } from '../components/MobileMenuButton';
 import { LogoutConfirmation } from '../components/LogoutConfirmation';
+import { LoadingState } from '../components/LoadingState';
 import { MemoryDetailScreen, type Memory } from './MemoryDetailScreen';
 import { ArrowLeft, Search, Filter, Calendar, Star, Heart, BookOpen, Sparkles, ChevronDown, Volume2, VolumeX, Smile, Edit, Trash2, RefreshCw, RotateCcw } from 'lucide-react';
 import { api, type Journal } from '../services/api';
@@ -351,9 +352,7 @@ export function MemoriesScreen({ onBack, childName = 'Friend', childId, onNaviga
 
           {/* Memory Grid */}
           {isLoading && (
-            <Card variant="child" className="text-center py-10">
-              <p className="text-[#64748b]">Loading your memories...</p>
-            </Card>
+            <LoadingState message="Loading your memories..." variant="child" />
           )}
 
           {error && (

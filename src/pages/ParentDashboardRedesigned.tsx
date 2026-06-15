@@ -36,6 +36,9 @@ import {
 } from "recharts";
 import logo from "../assets/35160e99e546074153c34366a831aa0e30d421e6.png";
 import { api } from "../services/api";
+import { ParentChildSelector } from "../components/ParentChildSelector";
+import { useParentChildSelection } from "../hooks/useParentChildSelection";
+import { LoadingState } from "../components/LoadingState";
 
 interface ParentDashboardRedesignedProps {
   childName: string;
@@ -57,13 +60,36 @@ export function ParentDashboardRedesigned({
     useState(false);
   const [overview, setOverview] = useState<any | null>(null);
   const [analytics, setAnalytics] = useState<any | null>(null);
+  const [isLoadingDashboard, setIsLoadingDashboard] = useState(false);
+  const {
+    children,
+    selectedChild,
+    selectedChildId,
+    setSelectedChildId,
+    isLoadingChildren,
+    childrenError,
+    hasNoLinkedChildren,
+  } = useParentChildSelection();
 
   useEffect(() => {
-    if (!parentId) return;
+    if (!parentId || isLoadingChildren || hasNoLinkedChildren) return;
 
-    api.dashboard.overview(parentId).then(setOverview).catch(() => setOverview(null));
-    api.dashboard.analytics(parentId).then(setAnalytics).catch(() => setAnalytics(null));
-  }, [parentId]);
+    const params = { childId: selectedChildId || undefined };
+    setIsLoadingDashboard(true);
+    Promise.all([
+      api.dashboard.overview(parentId, params),
+      api.dashboard.analytics(parentId, params),
+    ])
+      .then(([overviewData, analyticsData]) => {
+        setOverview(overviewData);
+        setAnalytics(analyticsData);
+      })
+      .catch(() => {
+        setOverview(null);
+        setAnalytics(null);
+      })
+      .finally(() => setIsLoadingDashboard(false));
+  }, [parentId, selectedChildId, isLoadingChildren, hasNoLinkedChildren]);
 
   const handleLogout = () => {
     setShowLogoutConfirm(false);
@@ -81,30 +107,44 @@ export function ParentDashboardRedesigned({
     }
   };
 
-  const weeklyMoodData = analytics?.weeklyMoodPattern?.length ? analytics.weeklyMoodPattern : [
-    { day: "Mon", happy: 3, calm: 1, excited: 2, sad: 0 },
-    { day: "Tue", happy: 4, calm: 2, excited: 1, sad: 0 },
-    { day: "Wed", happy: 2, calm: 3, excited: 2, sad: 1 },
-    { day: "Thu", happy: 5, calm: 1, excited: 3, sad: 0 },
-    { day: "Fri", happy: 4, calm: 2, excited: 4, sad: 0 },
-    { day: "Sat", happy: 3, calm: 4, excited: 2, sad: 0 },
-    { day: "Sun", happy: 4, calm: 3, excited: 1, sad: 0 },
-  ];
+  const displayedChildName = selectedChild?.nickname || selectedChild?.name || childName;
+  const hasJournalData = (overview?.totalJournals || 0) > 0;
+  const hasMoodData = overview?.moodSummary?.status === "available";
+  const isParentDataLoading = isLoadingChildren || isLoadingDashboard;
+  const moodColors: Record<string, string> = {
+    happy: "#ffe8a3",
+    calm: "#b8f4d3",
+    excited: "#ffd4c4",
+    creative: "#e1d4f7",
+    sad: "#cbd5e1",
+    neutral: "#cbd5e1",
+    unknown: "#e5e7eb",
+  };
 
-  const moodDistribution = overview?.moodSummary?.data?.length ? overview.moodSummary.data : [
-    { name: "Happy", value: 45, color: "#ffe8a3" },
-    { name: "Calm", value: 25, color: "#b8f4d3" },
-    { name: "Excited", value: 20, color: "#ffd4c4" },
-    { name: "Creative", value: 7, color: "#e1d4f7" },
-    { name: "Sad", value: 3, color: "#cbd5e1" },
-  ];
+  const weeklyMoodData = (analytics?.weeklyMoodPattern || []).map((day: any) => {
+    const row: Record<string, string | number> = {
+      day: String(day.day || "").slice(0, 3),
+      happy: 0,
+      calm: 0,
+      excited: 0,
+      sad: 0,
+    };
+    (day.moods || []).forEach((item: any) => {
+      row[item.mood] = item.count;
+    });
+    return row;
+  });
 
-  const activityTrend = analytics?.writingActivity?.weeklyActivity?.length ? analytics.writingActivity.weeklyActivity : [
-    { week: "Week 1", entries: 5 },
-    { week: "Week 2", entries: 7 },
-    { week: "Week 3", entries: 6 },
-    { week: "Week 4", entries: 8 },
-  ];
+  const moodDistribution = (overview?.moodSummary?.moodDistribution || []).map((item: any) => ({
+    name: item.mood,
+    value: item.count,
+    color: moodColors[item.mood] || "#e5e7eb",
+  }));
+
+  const activityTrend = (analytics?.writingActivity?.weeklyActivity || []).map((item: any) => ({
+    week: item.label,
+    entries: item.count,
+  }));
 
   const menuItems = [
     {
@@ -160,7 +200,7 @@ export function ParentDashboardRedesigned({
                   Monitoring
                 </p>
                 <p className="text-xs text-[#64748b]">
-                  {childName}
+                  {displayedChildName}
                 </p>
               </div>
             </div>
@@ -226,11 +266,17 @@ export function ParentDashboardRedesigned({
                   Parent Dashboard
                 </h1>
                 <p className="text-[#64748b] mt-1">
-                  Monitor {childName}'s emotional wellbeing and
+                  Monitor {displayedChildName}'s emotional wellbeing and
                   journaling activity
                 </p>
               </div>
               <div className="flex items-center gap-3">
+                <ParentChildSelector
+                  childrenList={children}
+                  selectedChildId={selectedChildId}
+                  onChange={setSelectedChildId}
+                  isLoading={isLoadingChildren}
+                />
                 <Badge variant="parent-teal">
                   All Systems Normal
                 </Badge>
@@ -241,6 +287,18 @@ export function ParentDashboardRedesigned({
 
         {/* Content */}
         <div className="p-8 space-y-6">
+          {(childrenError || hasNoLinkedChildren) && (
+            <Card variant="parent">
+              <p className="text-[#64748b]">
+                {childrenError || "No linked child accounts found yet. Link a child account to see dashboard data."}
+              </p>
+            </Card>
+          )}
+
+          {isParentDataLoading ? (
+            <LoadingState message="Loading dashboard data..." variant="parent" />
+          ) : (
+            <>
           {/* Quick Stats */}
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             <Card variant="parent" padding="medium">
@@ -249,10 +307,10 @@ export function ParentDashboardRedesigned({
                   <p className="text-sm text-[#64748b]">
                     Total Entries
                   </p>
-                  <h3 className="text-[#2d3748]">142</h3>
+                  <h3 className="text-[#2d3748]">{overview?.totalJournals || 0}</h3>
                   <div className="flex items-center gap-1 text-sm text-green-600">
                     <TrendingUp className="w-4 h-4" />
-                    <span>+12 this week</span>
+                    <span>{overview?.recentJournalCount || 0} recent</span>
                   </div>
                 </div>
                 <div className="w-12 h-12 rounded-lg bg-[var(--parent-teal)]/10 flex items-center justify-center">
@@ -267,10 +325,10 @@ export function ParentDashboardRedesigned({
                   <p className="text-sm text-[#64748b]">
                     Active Streak
                   </p>
-                  <h3 className="text-[#2d3748]">7 days</h3>
+                  <h3 className="text-[#2d3748]">{overview?.totalStories || 0}</h3>
                   <div className="flex items-center gap-1 text-sm text-green-600">
                     <CheckCircle className="w-4 h-4" />
-                    <span>Excellent!</span>
+                    <span>stories</span>
                   </div>
                 </div>
                 <div className="w-12 h-12 rounded-lg bg-green-100 flex items-center justify-center">
@@ -285,10 +343,10 @@ export function ParentDashboardRedesigned({
                   <p className="text-sm text-[#64748b]">
                     Overall Mood
                   </p>
-                  <h3 className="text-[#2d3748]">Positive</h3>
+                  <h3 className="text-[#2d3748] capitalize">{overview?.moodSummary?.dominantSentiment || "Not available"}</h3>
                   <div className="flex items-center gap-1 text-sm text-[var(--parent-teal)]">
                     <Heart className="w-4 h-4" />
-                    <span>8.2/10 avg</span>
+                    <span>{overview?.moodSummary?.totalAnalyzedJournals || 0} analyzed</span>
                   </div>
                 </div>
                 <div className="w-12 h-12 rounded-lg bg-yellow-100 flex items-center justify-center">
@@ -303,10 +361,10 @@ export function ParentDashboardRedesigned({
                   <p className="text-sm text-[#64748b]">
                     Last Active
                   </p>
-                  <h3 className="text-[#2d3748]">2h ago</h3>
+                  <h3 className="text-[#2d3748]">{overview?.lastActiveAt ? new Date(overview.lastActiveAt).toLocaleDateString() : "No activity"}</h3>
                   <div className="flex items-center gap-1 text-sm text-[#64748b]">
                     <Activity className="w-4 h-4" />
-                    <span>Recent entry</span>
+                    <span>Last active</span>
                   </div>
                 </div>
                 <div className="w-12 h-12 rounded-lg bg-blue-100 flex items-center justify-center">
@@ -327,9 +385,9 @@ export function ParentDashboardRedesigned({
                   All Systems Normal
                 </h4>
                 <p className="text-[#64748b]">
-                  {childName} has been consistently journaling
-                  and showing positive emotional trends. No
-                  concerns detected.
+                  {hasJournalData
+                    ? `${displayedChildName} has ${overview?.totalJournals || 0} journal entries included in this view.`
+                    : "No journal data is available for this child yet."}
                 </p>
               </div>
             </div>
@@ -383,8 +441,7 @@ export function ParentDashboardRedesigned({
                   </ResponsiveContainer>
                 </div>
                 <p className="text-sm text-[#64748b]">
-                  Predominantly positive moods detected, with
-                  healthy emotional variety.
+                  {hasMoodData ? "Mood data is based on analyzed journal entries." : "No mood data is available yet."}
                 </p>
               </div>
             </Card>
@@ -431,8 +488,7 @@ export function ParentDashboardRedesigned({
                   </ResponsiveContainer>
                 </div>
                 <p className="text-sm text-[#64748b]">
-                  Consistent positive engagement throughout the
-                  week.
+                  {hasMoodData ? "Weekly patterns come from backend mood analysis." : "Mood patterns will appear after journal analysis."}
                 </p>
               </div>
             </Card>
@@ -471,11 +527,12 @@ export function ParentDashboardRedesigned({
                 </ResponsiveContainer>
               </div>
               <p className="text-sm text-[#64748b]">
-                Increasing engagement trend shows growing
-                comfort with journaling.
+                {hasJournalData ? "Journal frequency comes from linked child data." : "No journal activity is available yet."}
               </p>
             </div>
           </Card>
+            </>
+          )}
         </div>
       </main>
 
