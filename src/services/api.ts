@@ -6,6 +6,7 @@ type ApiEnvelope<T> = {
   message?: string;
   success?: boolean;
   errors?: unknown[];
+  code?: string;
 };
 
 type QueryValue = string | number | boolean | undefined | null;
@@ -14,12 +15,14 @@ type UserType = "parent" | "child";
 export class ApiRequestError extends Error {
   statusCode?: number;
   errors: unknown[];
+  code?: string;
 
-  constructor(message: string, statusCode?: number, errors: unknown[] = []) {
+  constructor(message: string, statusCode?: number, errors: unknown[] = [], code?: string) {
     super(message);
     this.name = "ApiRequestError";
     this.statusCode = statusCode;
     this.errors = errors;
+    this.code = code;
   }
 }
 
@@ -69,11 +72,36 @@ async function request<T>(
       (payload as any)?.detail?.message ||
       response.statusText ||
       "Request failed";
-    throw new ApiRequestError(message, response.status, payload?.errors || []);
+    throw new ApiRequestError(message, response.status, payload?.errors || [], payload?.code);
   }
 
   return payload?.data as T;
 }
+
+const audioPayloadToBlob = async (payload: any): Promise<Blob> => {
+  const audioData = payload?.data || payload;
+  const audioBase64 = audioData?.audioBase64 || audioData?.base64 || audioData?.audio;
+  const audioUrl = audioData?.audioUrl || audioData?.url;
+
+  if (audioBase64) {
+    const normalized = String(audioBase64).includes(",")
+      ? String(audioBase64).split(",").pop() || ""
+      : String(audioBase64);
+    const binary = atob(normalized);
+    const bytes = Uint8Array.from(binary, (char) => char.charCodeAt(0));
+    return new Blob([bytes], { type: audioData?.mimeType || "audio/mpeg" });
+  }
+
+  if (audioUrl) {
+    const audioResponse = await fetch(audioUrl);
+    if (!audioResponse.ok) {
+      throw new Error("Audio request failed");
+    }
+    return audioResponse.blob();
+  }
+
+  throw new Error(payload?.message || "Audio response was not playable");
+};
 
 async function requestAudio(path: string, body: Record<string, unknown>): Promise<Blob> {
   const response = await fetch(`${API_BASE_URL}${path}`, {
@@ -84,7 +112,18 @@ async function requestAudio(path: string, body: Record<string, unknown>): Promis
 
   if (!response.ok) {
     const payload = await response.json().catch(() => null);
-    throw new Error(payload?.message || response.statusText || "Audio request failed");
+    throw new ApiRequestError(
+      payload?.message || response.statusText || "Audio request failed",
+      response.status,
+      payload?.errors || [],
+      payload?.code
+    );
+  }
+
+  const contentType = response.headers.get("Content-Type") || "";
+  if (contentType.includes("application/json")) {
+    const payload = await response.json();
+    return audioPayloadToBlob(payload);
   }
 
   return response.blob();
@@ -326,6 +365,10 @@ export const api = {
     },
     textToSpeech: (body: { text: string; voiceId?: string }) =>
       requestAudio("/v1/voice/text-to-speech", body),
+    storyTts: (body: { text: string; voiceId?: string }) =>
+      requestAudio("/v1/voice/story-tts", body),
+    feedbackTts: (body: { text: string; voiceId?: string }) =>
+      requestAudio("/v1/voice/feedback-tts", body),
     funVoice: (body: { text: string; voiceStyle: "normal" | "fun" | "story" }) =>
       requestAudio("/v1/voice/fun-voice", body),
   },

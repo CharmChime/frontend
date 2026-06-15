@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Card } from '../components/Card';
 import { Button } from '../components/Button';
 import { IconButton } from '../components/IconButton';
@@ -8,7 +8,7 @@ import { ChildSidebar } from '../components/ChildSidebar';
 import { MobileMenuButton } from '../components/MobileMenuButton';
 import { LogoutConfirmation } from '../components/LogoutConfirmation';
 import { MemoryDetailScreen, type Memory } from './MemoryDetailScreen';
-import { ArrowLeft, Search, Filter, Calendar, Star, Heart, BookOpen, Sparkles, ChevronDown, Volume2, Smile, Edit, Trash2 } from 'lucide-react';
+import { ArrowLeft, Search, Filter, Calendar, Star, Heart, BookOpen, Sparkles, ChevronDown, Volume2, VolumeX, Smile, Edit, Trash2, RefreshCw, RotateCcw } from 'lucide-react';
 import { api, type Journal } from '../services/api';
 import {
   formatDate,
@@ -42,6 +42,10 @@ export function MemoriesScreen({ onBack, childName = 'Friend', childId, onNaviga
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
   const [favoriteIds, setFavoriteIds] = useState<string[]>([]);
+  const [readingMemoryId, setReadingMemoryId] = useState<string | null>(null);
+  const [memoryVoiceStatus, setMemoryVoiceStatus] = useState<'idle' | 'loading' | 'playing' | 'ready' | 'unavailable'>('idle');
+  const memoryAudioRef = useRef<HTMLAudioElement | null>(null);
+  const memoryAudioUrlRef = useRef<string | null>(null);
 
   const handleLogout = () => {
     setShowLogoutConfirm(false);
@@ -83,6 +87,15 @@ export function MemoriesScreen({ onBack, childName = 'Friend', childId, onNaviga
       isMounted = false;
     };
   }, [childId, searchQuery]);
+
+  useEffect(() => {
+    return () => {
+      memoryAudioRef.current?.pause();
+      if (memoryAudioUrlRef.current) {
+        URL.revokeObjectURL(memoryAudioUrlRef.current);
+      }
+    };
+  }, []);
 
   const allMemories: Memory[] = useMemo(
     () =>
@@ -165,16 +178,44 @@ export function MemoriesScreen({ onBack, childName = 'Friend', childId, onNaviga
     setSelectedMemory(null);
   };
 
-  const handleReadMemory = (memory: Memory) => {
-    if (!('speechSynthesis' in window)) {
-      setError('Read aloud is not supported in this browser.');
+  const handleReadMemory = async (memory: Memory) => {
+    if (memoryAudioRef.current && readingMemoryId === memory.id && memoryVoiceStatus === 'playing') {
+      memoryAudioRef.current.pause();
+      memoryAudioRef.current.currentTime = 0;
+      setMemoryVoiceStatus('ready');
       return;
     }
 
-    window.speechSynthesis.cancel();
-    const utterance = new SpeechSynthesisUtterance(htmlToText(memory.content));
-    utterance.rate = 0.95;
-    window.speechSynthesis.speak(utterance);
+    memoryAudioRef.current?.pause();
+    memoryAudioRef.current = null;
+    if (memoryAudioUrlRef.current) {
+      URL.revokeObjectURL(memoryAudioUrlRef.current);
+      memoryAudioUrlRef.current = null;
+    }
+
+    setReadingMemoryId(memory.id);
+    setMemoryVoiceStatus('loading');
+    setError('');
+
+    try {
+      const audioBlob = await api.voice.textToSpeech({ text: htmlToText(memory.content) });
+      const audioUrl = URL.createObjectURL(audioBlob);
+      const audio = new Audio(audioUrl);
+      memoryAudioUrlRef.current = audioUrl;
+      memoryAudioRef.current = audio;
+
+      audio.onended = () => setMemoryVoiceStatus('ready');
+      audio.onerror = () => {
+        setMemoryVoiceStatus('unavailable');
+        setError('Voice is temporarily unavailable. Your memory text is still visible.');
+      };
+
+      await audio.play();
+      setMemoryVoiceStatus('playing');
+    } catch (err) {
+      setMemoryVoiceStatus('unavailable');
+      setError(err instanceof Error ? err.message : 'Voice is temporarily unavailable.');
+    }
   };
 
   const toggleFavorite = (memoryId: string) => {
@@ -363,7 +404,15 @@ export function MemoriesScreen({ onBack, childName = 'Friend', childId, onNaviga
                           handleReadMemory(memory);
                         }}
                       >
-                        <Volume2 className="w-4 h-4" />
+                        {readingMemoryId === memory.id && memoryVoiceStatus === 'loading' ? (
+                          <RefreshCw className="w-4 h-4 animate-spin" />
+                        ) : readingMemoryId === memory.id && memoryVoiceStatus === 'playing' ? (
+                          <VolumeX className="w-4 h-4" />
+                        ) : readingMemoryId === memory.id && memoryVoiceStatus === 'ready' ? (
+                          <RotateCcw className="w-4 h-4" />
+                        ) : (
+                          <Volume2 className="w-4 h-4" />
+                        )}
                       </IconButton>
                       <IconButton 
                         variant="child-yellow" 

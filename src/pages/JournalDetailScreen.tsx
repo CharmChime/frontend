@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Card } from '../components/Card';
 import { Button } from '../components/Button';
 import { IconButton } from '../components/IconButton';
@@ -6,7 +6,7 @@ import { Badge } from '../components/Badge';
 import { ChildSidebar } from '../components/ChildSidebar';
 import { MobileMenuButton } from '../components/MobileMenuButton';
 import { LogoutConfirmation } from '../components/LogoutConfirmation';
-import { ArrowLeft, Volume2, VolumeX, Star, Share2, Trash2, Edit, Calendar, Heart, Sparkles, Wand2 } from 'lucide-react';
+import { ArrowLeft, Volume2, VolumeX, Star, Share2, Trash2, Edit, Calendar, Heart, Sparkles, Wand2, RefreshCw, RotateCcw } from 'lucide-react';
 import { api } from '../services/api';
 import {
   formatConfidence,
@@ -49,6 +49,12 @@ export function JournalDetailScreen({
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
   const [actionMessage, setActionMessage] = useState('');
+  const [entryVoiceStatus, setEntryVoiceStatus] = useState<'idle' | 'loading' | 'playing' | 'ready' | 'unavailable'>('idle');
+  const [feedbackVoiceStatus, setFeedbackVoiceStatus] = useState<'idle' | 'loading' | 'playing' | 'ready' | 'unavailable'>('idle');
+  const entryAudioRef = useRef<HTMLAudioElement | null>(null);
+  const entryAudioUrlRef = useRef<string | null>(null);
+  const feedbackAudioRef = useRef<HTMLAudioElement | null>(null);
+  const feedbackAudioUrlRef = useRef<string | null>(null);
 
   const handleLogout = () => {
     setShowLogoutConfirm(false);
@@ -110,6 +116,15 @@ export function JournalDetailScreen({
     };
   }, [entryId]);
 
+  useEffect(() => {
+    return () => {
+      entryAudioRef.current?.pause();
+      feedbackAudioRef.current?.pause();
+      if (entryAudioUrlRef.current) URL.revokeObjectURL(entryAudioUrlRef.current);
+      if (feedbackAudioUrlRef.current) URL.revokeObjectURL(feedbackAudioUrlRef.current);
+    };
+  }, []);
+
   const voices = [
     {
       id: 'cheerful',
@@ -161,16 +176,120 @@ export function JournalDetailScreen({
     },
   ];
 
-  const handlePlayVoice = (voiceId: string) => {
+  const getVoiceStyle = (voiceId: string): 'normal' | 'fun' | 'story' => {
+    if (['storyteller', 'fairy'].includes(voiceId)) return 'story';
+    if (['robot', 'pirate'].includes(voiceId)) return 'fun';
+    return 'normal';
+  };
+
+  const handlePlayVoice = async (voiceId: string) => {
+    if (!entry) return;
+
+    if (entryAudioRef.current && selectedVoice === voiceId && entryVoiceStatus === 'playing') {
+      entryAudioRef.current.pause();
+      entryAudioRef.current.currentTime = 0;
+      setEntryVoiceStatus('ready');
+      return;
+    }
+
+    entryAudioRef.current?.pause();
+    if (entryAudioUrlRef.current) {
+      URL.revokeObjectURL(entryAudioUrlRef.current);
+      entryAudioUrlRef.current = null;
+    }
+    entryAudioRef.current = null;
     setSelectedVoice(voiceId);
     setIsPlaying(true);
-    // Simulate playing
-    setTimeout(() => setIsPlaying(false), 3000);
+    setEntryVoiceStatus('loading');
+    setActionMessage('');
+
+    try {
+      const audioBlob = await api.voice.funVoice({
+        text: htmlToText(entry.content),
+        voiceStyle: getVoiceStyle(voiceId),
+      });
+      const audioUrl = URL.createObjectURL(audioBlob);
+      const audio = new Audio(audioUrl);
+
+      entryAudioUrlRef.current = audioUrl;
+      entryAudioRef.current = audio;
+      audio.onended = () => {
+        setIsPlaying(false);
+        setEntryVoiceStatus('ready');
+      };
+      audio.onerror = () => {
+        setIsPlaying(false);
+        setEntryVoiceStatus('unavailable');
+        setActionMessage('Voice is temporarily unavailable. Your journal text is still here to read.');
+      };
+
+      await audio.play();
+      setEntryVoiceStatus('playing');
+    } catch (err) {
+      setIsPlaying(false);
+      setEntryVoiceStatus('unavailable');
+      setActionMessage(err instanceof Error ? err.message : 'Voice is temporarily unavailable.');
+    }
   };
 
   const handleStopVoice = () => {
+    entryAudioRef.current?.pause();
+    if (entryAudioRef.current) entryAudioRef.current.currentTime = 0;
     setIsPlaying(false);
-    setSelectedVoice(null);
+    setEntryVoiceStatus('ready');
+  };
+
+  const getFeedbackText = () => {
+    if (!entry?.aiFeedback) return '';
+
+    return [
+      entry.aiFeedback.message,
+      entry.aiFeedback.reflectionPrompt ? `Reflection prompt: ${entry.aiFeedback.reflectionPrompt}` : '',
+      entry.aiFeedback.suggestedAction ? `Suggested action: ${entry.aiFeedback.suggestedAction}` : '',
+    ]
+      .filter(Boolean)
+      .join('\n\n');
+  };
+
+  const handlePlayFeedback = async () => {
+    const feedbackText = getFeedbackText();
+    if (!feedbackText) return;
+
+    if (feedbackAudioRef.current && feedbackVoiceStatus === 'playing') {
+      feedbackAudioRef.current.pause();
+      feedbackAudioRef.current.currentTime = 0;
+      setFeedbackVoiceStatus('ready');
+      return;
+    }
+
+    setFeedbackVoiceStatus('loading');
+    setActionMessage('');
+
+    try {
+      if (!feedbackAudioRef.current) {
+        const audioBlob = await api.voice.feedbackTts({ text: feedbackText });
+        if (feedbackAudioUrlRef.current) {
+          URL.revokeObjectURL(feedbackAudioUrlRef.current);
+        }
+        const audioUrl = URL.createObjectURL(audioBlob);
+        const audio = new Audio(audioUrl);
+        feedbackAudioUrlRef.current = audioUrl;
+        feedbackAudioRef.current = audio;
+
+        audio.onended = () => setFeedbackVoiceStatus('ready');
+        audio.onerror = () => {
+          setFeedbackVoiceStatus('unavailable');
+          setActionMessage("Feedback voice is temporarily unavailable. Chime's text is still visible.");
+        };
+      }
+
+      feedbackAudioRef.current.currentTime = 0;
+      await feedbackAudioRef.current.play();
+      setFeedbackVoiceStatus('playing');
+    } catch (err) {
+      setFeedbackVoiceStatus('unavailable');
+      setActionMessage(err instanceof Error ? err.message : 'Feedback voice is temporarily unavailable.');
+    }
   };
 
   const handleShareEntry = async () => {
@@ -307,9 +426,31 @@ export function JournalDetailScreen({
               </div>
               {entry.aiFeedback ? (
                 <>
-                  <div className="flex items-center gap-2">
-                    <Heart className="w-5 h-5 text-[#065f46]" fill="currentColor" />
-                    <h3 className="text-[#2d3748] text-lg sm:text-xl">Chime's Thoughts</h3>
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="flex items-center gap-2">
+                      <Heart className="w-5 h-5 text-[#065f46]" fill="currentColor" />
+                      <h3 className="text-[#2d3748] text-lg sm:text-xl">Chime's Thoughts</h3>
+                    </div>
+                    <Button
+                      variant={feedbackVoiceStatus === 'unavailable' ? 'child-slate' : 'child-mint'}
+                      size="small"
+                      icon={
+                        feedbackVoiceStatus === 'loading' ? <RefreshCw className="w-4 h-4 animate-spin" /> :
+                        feedbackVoiceStatus === 'playing' ? <VolumeX className="w-4 h-4" /> :
+                        feedbackVoiceStatus === 'ready' ? <RotateCcw className="w-4 h-4" /> :
+                        <Volume2 className="w-4 h-4" />
+                      }
+                      onClick={handlePlayFeedback}
+                      disabled={feedbackVoiceStatus === 'loading'}
+                    >
+                      {feedbackVoiceStatus === 'loading'
+                        ? 'Generating Voice...'
+                        : feedbackVoiceStatus === 'playing'
+                        ? 'Stop Audio'
+                        : feedbackVoiceStatus === 'ready'
+                        ? 'Replay Feedback'
+                        : 'Listen to Feedback'}
+                    </Button>
                   </div>
                   <p className="text-[#4a5568] text-sm sm:text-base">{entry.aiFeedback.message}</p>
                   <div className="grid gap-3 sm:grid-cols-2">
@@ -345,7 +486,7 @@ export function JournalDetailScreen({
                   <button
                     key={voice.id}
                     onClick={() => handlePlayVoice(voice.id)}
-                    disabled={isPlaying}
+                    disabled={entryVoiceStatus === 'loading'}
                     className={`
                       p-3 sm:p-4 rounded-[1.5rem]
                       transition-all duration-200
@@ -356,7 +497,7 @@ export function JournalDetailScreen({
                         ? `bg-gradient-to-br ${voice.color} shadow-lg text-white`
                         : 'bg-gray-50 hover:bg-gray-100'
                       }
-                      ${isPlaying ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'}
+                      ${entryVoiceStatus === 'loading' ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'}
                     `}
                   >
                     <span className="text-2xl sm:text-3xl">{voice.emoji}</span>
@@ -375,7 +516,7 @@ export function JournalDetailScreen({
               {/* Play Controls */}
               {selectedVoice && (
                 <div className="flex items-center justify-center gap-3 p-4 bg-gradient-to-r from-[var(--child-lavender)]/20 to-[var(--child-peach)]/20 rounded-[1.5rem]">
-                  {isPlaying ? (
+                  {entryVoiceStatus === 'loading' || entryVoiceStatus === 'playing' ? (
                     <>
                       <div className="flex items-center gap-2 text-[#2d3748]">
                         <div className="flex gap-1">
@@ -384,7 +525,9 @@ export function JournalDetailScreen({
                           <div className="w-1 h-4 bg-[var(--child-lavender)] rounded-full animate-pulse" style={{ animationDelay: '300ms' }}></div>
                         </div>
                         <span className="text-sm sm:text-base">
-                          Playing with {voices.find(v => v.id === selectedVoice)?.name}...
+                          {entryVoiceStatus === 'loading'
+                            ? `Generating ${voices.find(v => v.id === selectedVoice)?.name}...`
+                            : `Playing with ${voices.find(v => v.id === selectedVoice)?.name}...`}
                         </span>
                       </div>
                       <Button 
@@ -399,15 +542,17 @@ export function JournalDetailScreen({
                   ) : (
                     <>
                       <span className="text-sm sm:text-base text-[#2d3748]">
-                        Ready with {voices.find(v => v.id === selectedVoice)?.name}!
+                        {entryVoiceStatus === 'unavailable'
+                          ? 'Voice is unavailable right now.'
+                          : `Ready with ${voices.find(v => v.id === selectedVoice)?.name}!`}
                       </span>
                       <Button 
                         variant="child-lavender" 
                         size="small" 
-                        icon={<Volume2 className="w-4 h-4" />}
+                        icon={entryVoiceStatus === 'ready' ? <RotateCcw className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
                         onClick={() => handlePlayVoice(selectedVoice)}
                       >
-                        Play Again
+                        {entryVoiceStatus === 'ready' ? 'Replay Audio' : 'Try Again'}
                       </Button>
                     </>
                   )}

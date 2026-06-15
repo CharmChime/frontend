@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Card } from '../components/Card';
 import { Button } from '../components/Button';
 import { IconButton } from '../components/IconButton';
@@ -30,6 +30,10 @@ export function StoryModeScreen({ onBack, childName = 'Friend', childId, onNavig
   const [journalEntries, setJournalEntries] = useState<Journal[]>([]);
   const [error, setError] = useState('');
   const [actionMessage, setActionMessage] = useState('');
+  const [storyVoiceStatus, setStoryVoiceStatus] = useState<'idle' | 'loading' | 'playing' | 'ready' | 'unavailable'>('idle');
+  const storyAudioRef = useRef<HTMLAudioElement | null>(null);
+  const storyAudioUrlRef = useRef<string | null>(null);
+  const isReadingStory = storyVoiceStatus === 'loading' || storyVoiceStatus === 'playing';
 
   const handleLogout = () => {
     setShowLogoutConfirm(false);
@@ -66,6 +70,15 @@ export function StoryModeScreen({ onBack, childName = 'Friend', childId, onNavig
       .catch(() => setJournalEntries([]));
   }, [childId]);
 
+  useEffect(() => {
+    return () => {
+      storyAudioRef.current?.pause();
+      if (storyAudioUrlRef.current) {
+        URL.revokeObjectURL(storyAudioUrlRef.current);
+      }
+    };
+  }, []);
+
   const getMoodEmoji = (mood: string) => {
     switch(mood) {
       case 'happy': return '😊';
@@ -90,6 +103,13 @@ export function StoryModeScreen({ onBack, childName = 'Friend', childId, onNavig
 
     setError('');
     setIsGenerating(true);
+    storyAudioRef.current?.pause();
+    storyAudioRef.current = null;
+    if (storyAudioUrlRef.current) {
+      URL.revokeObjectURL(storyAudioUrlRef.current);
+      storyAudioUrlRef.current = null;
+    }
+    setStoryVoiceStatus('idle');
     try {
       let journalId = selectedEntries[0];
 
@@ -125,17 +145,47 @@ export function StoryModeScreen({ onBack, childName = 'Friend', childId, onNavig
     ? selectedTheme && storyPrompt 
     : selectedTheme && selectedEntries.length > 0;
 
-  const handleReadGeneratedStory = () => {
+  const handleReadGeneratedStory = async () => {
     if (!generatedStory) return;
-    if (!('speechSynthesis' in window)) {
-      setError('Read aloud is not supported in this browser.');
+
+    if (storyAudioRef.current && storyVoiceStatus === 'playing') {
+      storyAudioRef.current.pause();
+      storyAudioRef.current.currentTime = 0;
+      setStoryVoiceStatus('ready');
       return;
     }
 
-    window.speechSynthesis.cancel();
-    const utterance = new SpeechSynthesisUtterance(generatedStory);
-    utterance.rate = 0.95;
-    window.speechSynthesis.speak(utterance);
+    setError('');
+    setActionMessage('');
+    setStoryVoiceStatus('loading');
+
+    try {
+      if (!storyAudioRef.current) {
+        const audioBlob = await api.voice.storyTts({ text: generatedStory });
+
+        if (storyAudioUrlRef.current) {
+          URL.revokeObjectURL(storyAudioUrlRef.current);
+        }
+
+        const audioUrl = URL.createObjectURL(audioBlob);
+        const audio = new Audio(audioUrl);
+        storyAudioUrlRef.current = audioUrl;
+        storyAudioRef.current = audio;
+
+        audio.onended = () => setStoryVoiceStatus('ready');
+        audio.onerror = () => {
+          setStoryVoiceStatus('unavailable');
+          setError('Story voice is temporarily unavailable. You can still read the story below.');
+        };
+      }
+
+      storyAudioRef.current.currentTime = 0;
+      await storyAudioRef.current.play();
+      setStoryVoiceStatus('playing');
+    } catch (err) {
+      setStoryVoiceStatus('unavailable');
+      setError(err instanceof Error ? err.message : 'Story voice is temporarily unavailable. You can still read the story below.');
+    }
   };
 
   const handleSaveStory = () => {
@@ -146,7 +196,21 @@ export function StoryModeScreen({ onBack, childName = 'Friend', childId, onNavig
     setCreationMode('prompt');
     setStoryPrompt(`${generatedStory}\n\nContinue this story with another magical scene.`);
     setGeneratedStory('');
+    storyAudioRef.current?.pause();
+    storyAudioRef.current = null;
+    setStoryVoiceStatus('idle');
     setActionMessage('');
+  };
+
+  const handleNewStory = () => {
+    storyAudioRef.current?.pause();
+    storyAudioRef.current = null;
+    if (storyAudioUrlRef.current) {
+      URL.revokeObjectURL(storyAudioUrlRef.current);
+      storyAudioUrlRef.current = null;
+    }
+    setStoryVoiceStatus('idle');
+    setGeneratedStory('');
   };
 
   return (
@@ -475,8 +539,25 @@ export function StoryModeScreen({ onBack, childName = 'Friend', childId, onNavig
 
                 {/* Story Actions */}
                 <div className="pt-4 border-t-2 border-gray-100 flex flex-wrap gap-2 sm:gap-3">
-                  <Button variant="child-blue" icon={<Volume2 className="w-5 h-5" />} size="medium" onClick={handleReadGeneratedStory}>
-                    Read Aloud
+                  <Button
+                    variant="child-blue"
+                    icon={
+                      storyVoiceStatus === 'loading' ? <RefreshCw className="w-5 h-5 animate-spin" /> :
+                      storyVoiceStatus === 'playing' ? <Pause className="w-5 h-5" /> :
+                      storyVoiceStatus === 'ready' ? <RotateCcw className="w-5 h-5" /> :
+                      <Volume2 className="w-5 h-5" />
+                    }
+                    size="medium"
+                    onClick={handleReadGeneratedStory}
+                    disabled={!generatedStory || storyVoiceStatus === 'loading'}
+                  >
+                    {storyVoiceStatus === 'loading'
+                      ? 'Generating Voice...'
+                      : storyVoiceStatus === 'playing'
+                      ? 'Stop Audio'
+                      : storyVoiceStatus === 'ready'
+                      ? 'Replay Audio'
+                      : 'Listen'}
                   </Button>
                   <Button variant="child-mint" icon={<Sparkles className="w-5 h-5" fill="currentColor" />} size="medium" onClick={handleContinueStory}>
                     Continue Story
@@ -484,7 +565,7 @@ export function StoryModeScreen({ onBack, childName = 'Friend', childId, onNavig
                   <Button variant="child-yellow" icon={<Save className="w-5 h-5" />} size="medium" onClick={handleSaveStory}>
                     Save to Memories
                   </Button>
-                  <Button variant="child-peach" icon={<Wand2 className="w-5 h-5" />} size="medium" onClick={() => setGeneratedStory('')}>
+                  <Button variant="child-peach" icon={<Wand2 className="w-5 h-5" />} size="medium" onClick={handleNewStory}>
                     New Story
                   </Button>
                 </div>
