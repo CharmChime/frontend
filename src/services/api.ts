@@ -103,10 +103,14 @@ const audioPayloadToBlob = async (payload: any): Promise<Blob> => {
   throw new Error(payload?.message || "Audio response was not playable");
 };
 
-async function requestAudio(path: string, body: Record<string, unknown>): Promise<Blob> {
+async function requestAudio(
+  path: string,
+  body: Record<string, unknown>,
+  userType: UserType = "child"
+): Promise<Blob> {
   const response = await fetch(`${API_BASE_URL}${path}`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...authHeaders(userType) },
     body: JSON.stringify(body),
   });
 
@@ -150,6 +154,7 @@ export type Parent = {
   email: string;
   phone?: string;
   notificationPreferences?: Record<string, unknown>;
+  appearancePreferences?: Record<string, unknown>;
   isVerified?: boolean;
   createdAt?: string;
   updatedAt?: string;
@@ -167,6 +172,7 @@ export type ParentProfileUpdate = {
   name?: string;
   phone?: string;
   notificationPreferences?: Record<string, unknown>;
+  appearancePreferences?: Record<string, unknown>;
 };
 
 export type OtpUserType = "parent" | "child";
@@ -294,6 +300,12 @@ export const api = {
         method: "POST",
         body: JSON.stringify(body),
       }),
+    logout: (userType: UserType) =>
+      request<{ message?: string }>("/v1/auth/logout", {
+        method: "POST",
+        headers: authHeaders(userType),
+        body: JSON.stringify({ token: getStoredToken(userType) }),
+      }),
   },
   children: {
     me: () =>
@@ -325,8 +337,15 @@ export const api = {
   },
   journals: {
     list: (params: { childId?: string; search?: string; inputType?: string } = {}) =>
-      request<{ journals: Journal[]; count: number }>("/v1/journals", {}, params),
-    get: (journalId: string) => request<{ journal: Journal }>(`/v1/journals/${journalId}`),
+      request<{ journals: Journal[]; count: number }>(
+        "/v1/journals",
+        { headers: authHeaders("child") },
+        params
+      ),
+    get: (journalId: string) =>
+      request<{ journal: Journal }>(`/v1/journals/${journalId}`, {
+        headers: authHeaders("child"),
+      }),
     create: (body: {
       childId: string;
       title?: string;
@@ -336,20 +355,25 @@ export const api = {
     }) =>
       request<JournalCreateResponse>("/v1/journals", {
         method: "POST",
+        headers: authHeaders("child"),
         body: JSON.stringify(body),
       }),
     remove: (journalId: string) =>
-      request<{ journal: Journal }>(`/v1/journals/${journalId}`, { method: "DELETE" }),
+      request<{ journal: Journal }>(`/v1/journals/${journalId}`, {
+        method: "DELETE",
+        headers: authHeaders("child"),
+      }),
   },
   mood: {
     analyze: (journalId: string) =>
       request<{ moodAnalysis?: MoodAnalysis; analysis?: MoodAnalysis }>(
         `/v1/mood/analyze/${journalId}`,
-        { method: "POST" }
+        { method: "POST", headers: authHeaders("child") }
       ),
     byChild: (childId: string) =>
       request<{ moods?: MoodAnalysis[]; moodAnalyses?: MoodAnalysis[]; analyses?: MoodAnalysis[] }>(
-        `/v1/mood/child/${childId}`
+        `/v1/mood/child/${childId}`,
+        { headers: authHeaders("child") }
       ),
   },
   voice: {
@@ -360,6 +384,7 @@ export const api = {
 
       return request<{ transcript: string }>("/v1/voice/speech-to-text", {
         method: "POST",
+        headers: authHeaders("child"),
         body: formData,
       });
     },
@@ -374,22 +399,46 @@ export const api = {
   },
   stories: {
     list: (params: { childId?: string; journalId?: string; theme?: string; search?: string } = {}) =>
-      request<{ stories: Story[]; count: number }>("/v1/stories", {}, params),
+      request<{ stories: Story[]; count: number }>(
+        "/v1/stories",
+        { headers: authHeaders("child") },
+        params
+      ),
     generate: (body: { journalId: string; theme?: string; length?: "short" | "medium" }) =>
       request<{ story: Story }>("/v1/stories/generate", {
         method: "POST",
+        headers: authHeaders("child"),
         body: JSON.stringify(body),
       }),
   },
   dashboard: {
-    overview: (parentId: string) => request<any>(`/v1/dashboard/parent/${parentId}/overview`),
-    analytics: (parentId: string) => request<any>(`/v1/dashboard/parent/${parentId}/analytics`),
-    insights: (parentId: string) => request<any>(`/v1/dashboard/parent/${parentId}/ai-insights`),
+    overview: (parentId: string) =>
+      request<any>(`/v1/dashboard/parent/${parentId}/overview`, {
+        headers: authHeaders("parent"),
+      }),
+    analytics: (parentId: string) =>
+      request<any>(`/v1/dashboard/parent/${parentId}/analytics`, {
+        headers: authHeaders("parent"),
+      }),
+    insights: (parentId: string) =>
+      request<any>(`/v1/dashboard/parent/${parentId}/ai-insights`, {
+        headers: authHeaders("parent"),
+      }),
     activity: (parentId: string, params: { type?: string } = {}) =>
-      request<any>(`/v1/dashboard/parent/${parentId}/activity-log`, {}, params),
-    reports: (parentId: string, params: { range?: string } = {}) =>
-      request<any>(`/v1/dashboard/parent/${parentId}/reports`, {}, params),
+      request<any>(
+        `/v1/dashboard/parent/${parentId}/activity-log`,
+        { headers: authHeaders("parent") },
+        params
+      ),
+    reports: (parentId: string, params: { range?: string; startDate?: string; endDate?: string } = {}) =>
+      request<any>(
+        `/v1/dashboard/parent/${parentId}/reports`,
+        { headers: authHeaders("parent") },
+        params
+      ),
     children: (parentId: string) =>
-      request<{ children: Child[] }>(`/v1/dashboard/parent/${parentId}/children`),
+      request<{ children: Child[] }>(`/v1/dashboard/parent/${parentId}/children`, {
+        headers: authHeaders("parent"),
+      }),
   },
 };

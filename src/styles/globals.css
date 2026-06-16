@@ -78,6 +78,26 @@
   --sidebar-ring: #7ab8e8;
 }
 
+[data-parent-color-theme="Slate"] {
+  --parent-teal: #334155;
+  --parent-teal-dark: #1e293b;
+}
+
+[data-parent-color-theme="Blue"] {
+  --parent-teal: #3b82f6;
+  --parent-teal-dark: #1d4ed8;
+}
+
+[data-parent-color-theme="Purple"] {
+  --parent-teal: #a855f7;
+  --parent-teal-dark: #7e22ce;
+}
+
+[data-parent-color-theme="Green"] {
+  --parent-teal: #10b981;
+  --parent-teal-dark: #047857;
+}
+
 .dark {
   --background: #1e293b;
   --foreground: #f1f5f9;
@@ -117,6 +137,10 @@
   /* Dark mode Child Interface Colors */
   --child-bg: #1e293b;
   --child-card: #334155;
+  --parent-bg: #0f172a;
+  --parent-card: #1e293b;
+  --parent-slate: #cbd5e1;
+  --parent-slate-light: #e2e8f0;
 }
 
 @theme inline {

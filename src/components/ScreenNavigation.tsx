@@ -75,6 +75,7 @@ const saveOtpContext = (context: OtpContext) => {
 
 function JournalDetailRoute({
   childName,
+  childId,
   onBack,
   onNavigate,
   onLogout,
@@ -233,7 +234,21 @@ export function ScreenNavigation() {
     goTo('/child/home');
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    const logoutRequests: Promise<unknown>[] = [];
+
+    if (localStorage.getItem('charmchime_child_token')) {
+      logoutRequests.push(api.auth.logout('child'));
+    }
+
+    if (localStorage.getItem('charmchime_parent_token')) {
+      logoutRequests.push(api.auth.logout('parent'));
+    }
+
+    if (logoutRequests.length) {
+      await Promise.allSettled(logoutRequests);
+    }
+
     setUserType(null);
     setChild(null);
     setParent(null);

@@ -6,6 +6,7 @@ import { MobileMenuButton } from '../components/MobileMenuButton';
 import { LogoutConfirmation } from '../components/LogoutConfirmation';
 import { ArrowLeft, User, Bell, Shield } from 'lucide-react';
 import { api, type Child } from '../services/api';
+import { toast } from 'sonner';
 
 interface ChildSettingsScreenProps {
   onBack: () => void;
@@ -77,7 +78,9 @@ export function ChildSettingsScreen({
       .catch((error) => {
         if (!isMounted) return;
         setName(childName);
-        setSettingsError(error instanceof Error ? error.message : 'Could not load your profile.');
+        const message = error instanceof Error ? error.message : 'Could not load your profile.';
+        setSettingsError(message);
+        toast.error(message);
       })
       .finally(() => {
         if (isMounted) {
@@ -136,8 +139,11 @@ export function ChildSettingsScreen({
 
       onProfileUpdated?.(child);
       setSettingsMessage('Profile saved successfully.');
+      toast.success('Profile saved successfully.');
     } catch (error) {
-      setSettingsError(error instanceof Error ? error.message : 'Could not save your profile.');
+      const message = error instanceof Error ? error.message : 'Could not save your profile.';
+      setSettingsError(message);
+      toast.error(message);
     } finally {
       setIsSavingProfile(false);
     }
@@ -288,7 +294,11 @@ export function ChildSettingsScreen({
                     </div>
                   </div>
                   <button
-                    onClick={() => setNotificationsEnabled(!notificationsEnabled)}
+                    onClick={() => {
+                      const nextValue = !notificationsEnabled;
+                      setNotificationsEnabled(nextValue);
+                      toast.info(nextValue ? 'Journal reminders turned on.' : 'Journal reminders turned off.');
+                    }}
                     disabled={isLoadingProfile || isSavingProfile}
                     className={`w-14 h-8 rounded-full transition-all duration-200 flex-shrink-0 ${
                       notificationsEnabled ? 'bg-[var(--child-mint)]' : 'bg-gray-300'
@@ -334,7 +344,11 @@ export function ChildSettingsScreen({
                     </div>
                   </div>
                   <button
-                    onClick={() => setShareMoodEnabled(!shareMoodEnabled)}
+                    onClick={() => {
+                      const nextValue = !shareMoodEnabled;
+                      setShareMoodEnabled(nextValue);
+                      toast.info(nextValue ? 'Mood sharing turned on.' : 'Mood sharing turned off.');
+                    }}
                     disabled={isLoadingProfile || isSavingProfile}
                     className={`w-14 h-8 rounded-full transition-all duration-200 flex-shrink-0 ${
                       shareMoodEnabled ? 'bg-[var(--child-mint)]' : 'bg-gray-300'

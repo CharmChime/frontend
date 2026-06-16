@@ -18,6 +18,7 @@ import {
   moodColor,
   moodEmoji,
 } from '../services/journalAdapters';
+import { toast } from 'sonner';
 
 interface JournalEntryScreenProps {
   onBack: () => void;
@@ -137,6 +138,7 @@ export function JournalEntryScreen({ onBack, onSave, childName = 'Friend', child
 
       if (!cleanTranscript) {
         setError('I could not hear any words in that recording. Please try again.');
+        toast.error('I could not hear any words in that recording. Please try again.');
         return;
       }
 
@@ -149,8 +151,11 @@ export function JournalEntryScreen({ onBack, onSave, childName = 'Friend', child
         }
       }
       setHasVoiceTranscript(true);
+      toast.success('Voice added to your journal.');
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Speech-to-text failed.');
+      const message = err instanceof Error ? err.message : 'Speech-to-text failed.';
+      setError(message);
+      toast.error(message);
     } finally {
       setIsTranscribing(false);
     }
@@ -218,11 +223,13 @@ export function JournalEntryScreen({ onBack, onSave, childName = 'Friend', child
 
     if (!childId) {
       setError('Please log in as a child before saving an entry.');
+      toast.error('Please log in as a child before saving an entry.');
       return;
     }
 
     if (!htmlToText(content)) {
       setError('Write a little something before saving.');
+      toast.error('Write a little something before saving.');
       return;
     }
 
@@ -246,10 +253,13 @@ export function JournalEntryScreen({ onBack, onSave, childName = 'Friend', child
       if (feedbackTimer) window.clearTimeout(feedbackTimer);
       setSaveStage('feedback');
       setSaveResult(data);
+      toast.success('Journal saved. Chime feedback is ready.');
     } catch (err) {
       if (stageTimer) window.clearTimeout(stageTimer);
       if (feedbackTimer) window.clearTimeout(feedbackTimer);
-      setError(err instanceof Error ? err.message : 'Could not save this entry.');
+      const message = err instanceof Error ? err.message : 'Could not save this entry.';
+      setError(message);
+      toast.error(message);
     } finally {
       setIsSaving(false);
       setSaveStage('idle');
@@ -309,8 +319,10 @@ export function JournalEntryScreen({ onBack, onSave, childName = 'Friend', child
       feedbackAudioRef.current.currentTime = 0;
       await feedbackAudioRef.current.play();
       setFeedbackVoiceStatus('playing');
+      toast.info('Playing Chime feedback.');
     } catch {
       setFeedbackVoiceStatus('unavailable');
+      toast.error('Feedback voice is temporarily unavailable.');
     }
   };
 

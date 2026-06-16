@@ -16,6 +16,7 @@ import {
   TrendingUp,
 } from 'lucide-react';
 import { api, type Child, type Parent } from '../services/api';
+import { toast } from 'sonner';
 
 interface ParentSettingsScreenProps {
   onBack: () => void;
@@ -28,6 +29,19 @@ const readBooleanPreference = (
   fallback: boolean
 ) => {
   return typeof preferences?.[key] === 'boolean' ? Boolean(preferences[key]) : fallback;
+};
+
+const readStringPreference = (
+  preferences: Record<string, unknown> | undefined,
+  key: string,
+  fallback: string
+) => {
+  return typeof preferences?.[key] === 'string' ? String(preferences[key]) : fallback;
+};
+
+const applyParentAppearance = (appearance: { theme: 'light' | 'dark'; colorTheme: string }) => {
+  document.documentElement.classList.toggle('dark', appearance.theme === 'dark');
+  document.documentElement.dataset.parentColorTheme = appearance.colorTheme;
 };
 
 export function ParentSettingsScreen({ onBack, onProfileUpdated }: ParentSettingsScreenProps) {
@@ -65,6 +79,9 @@ export function ParentSettingsScreen({ onBack, onProfileUpdated }: ParentSetting
 
         const parent = profileResponse.parent;
         const preferences = parent.notificationPreferences;
+        const appearancePreferences = parent.appearancePreferences;
+        const nextTheme = readStringPreference(appearancePreferences, 'theme', 'light') === 'dark' ? 'dark' : 'light';
+        const nextColorTheme = readStringPreference(appearancePreferences, 'colorTheme', 'Teal');
 
         setParentProfile(parent);
         setName(parent.fullName || parent.name || '');
@@ -75,12 +92,17 @@ export function ParentSettingsScreen({ onBack, onProfileUpdated }: ParentSetting
         setConcernAlerts(readBooleanPreference(preferences, 'concernAlerts', true));
         setMoodInsights(readBooleanPreference(preferences, 'moodInsights', true));
         setActivityNotifications(readBooleanPreference(preferences, 'activityNotifications', true));
+        setTheme(nextTheme);
+        setSelectedColorTheme(nextColorTheme);
+        applyParentAppearance({ theme: nextTheme, colorTheme: nextColorTheme });
         setLinkedChildren(childrenResponse.children || []);
         onProfileUpdated?.(parent);
       })
       .catch((error) => {
         if (!isMounted) return;
-        setSettingsError(error instanceof Error ? error.message : 'Could not load parent settings.');
+        const message = error instanceof Error ? error.message : 'Could not load parent settings.';
+        setSettingsError(message);
+        toast.error(message);
       })
       .finally(() => {
         if (isMounted) {
@@ -95,11 +117,24 @@ export function ParentSettingsScreen({ onBack, onProfileUpdated }: ParentSetting
 
   const handleThemeChange = (newTheme: 'light' | 'dark') => {
     setTheme(newTheme);
-    if (newTheme === 'dark') {
-      document.documentElement.classList.add('dark');
-    } else {
-      document.documentElement.classList.remove('dark');
-    }
+    applyParentAppearance({ theme: newTheme, colorTheme: selectedColorTheme });
+    toast.info(`${newTheme === 'dark' ? 'Dark' : 'Light'} theme selected. Save changes to keep it.`);
+  };
+
+  const handleColorThemeChange = (colorTheme: string) => {
+    setSelectedColorTheme(colorTheme);
+    applyParentAppearance({ theme, colorTheme });
+    toast.info(`${colorTheme} color theme selected. Save changes to keep it.`);
+  };
+
+  const handleTogglePreference = (
+    label: string,
+    enabled: boolean,
+    setEnabled: React.Dispatch<React.SetStateAction<boolean>>
+  ) => {
+    const nextValue = !enabled;
+    setEnabled(nextValue);
+    toast.info(`${label} ${nextValue ? 'enabled' : 'disabled'}. Save changes to keep it.`);
   };
 
   const handleSaveProfile = async () => {
@@ -124,13 +159,21 @@ export function ParentSettingsScreen({ onBack, onProfileUpdated }: ParentSetting
           moodInsights,
           activityNotifications,
         },
+        appearancePreferences: {
+          theme,
+          colorTheme: selectedColorTheme,
+        },
       });
 
       setParentProfile(parent);
       onProfileUpdated?.(parent);
       setSettingsMessage('Settings saved successfully.');
+      applyParentAppearance({ theme, colorTheme: selectedColorTheme });
+      toast.success('Parent settings saved successfully.');
     } catch (error) {
-      setSettingsError(error instanceof Error ? error.message : 'Could not save settings.');
+      const message = error instanceof Error ? error.message : 'Could not save settings.';
+      setSettingsError(message);
+      toast.error(message);
     } finally {
       setIsSaving(false);
     }
@@ -375,7 +418,7 @@ export function ParentSettingsScreen({ onBack, onProfileUpdated }: ParentSetting
                       </div>
                     </div>
                     <button
-                      onClick={() => item.setEnabled(!item.enabled)}
+                      onClick={() => handleTogglePreference(item.label, item.enabled, item.setEnabled)}
                       disabled={isLoading || isSaving}
                       className={`w-14 h-8 rounded-full transition-all duration-200 flex-shrink-0 ${
                         item.enabled ? 'bg-[var(--parent-teal)]' : 'bg-gray-300'
@@ -453,7 +496,7 @@ export function ParentSettingsScreen({ onBack, onProfileUpdated }: ParentSetting
                     {colorThemes.map((colorTheme) => (
                       <button
                         key={colorTheme.name}
-                        onClick={() => setSelectedColorTheme(colorTheme.name)}
+                        onClick={() => handleColorThemeChange(colorTheme.name)}
                         className={`w-10 h-10 rounded-full transition-all duration-200 ${
                           selectedColorTheme === colorTheme.name
                             ? 'border-2 border-[var(--parent-teal)]'

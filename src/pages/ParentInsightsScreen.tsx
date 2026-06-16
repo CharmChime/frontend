@@ -35,86 +35,28 @@ export function ParentInsightsScreen({ childName, parentId, onNavigate, onLogout
     opportunity: <Lightbulb className="w-6 h-6" />,
   };
 
-  const insights = insightData?.keyInsights?.length ? insightData.keyInsights.map((insight: any) => ({
+  const displayInsights = (insightData?.keyInsights || []).map((insight: any) => ({
     ...insight,
     type: insight.type === 'mood' ? 'positive' : insight.type,
-    icon: insight.icon || iconByInsightType[insight.type] || <MessageCircle className="w-6 h-6" />,
+    icon: iconByInsightType[insight.type] || <MessageCircle className="w-6 h-6" />,
     confidence:
       typeof insight.confidence === 'number'
         ? Math.round(insight.confidence <= 1 ? insight.confidence * 100 : insight.confidence)
-        : 0,
+        : null,
     date: insight.date || 'Current',
-  })) : [
-    {
-      type: 'positive',
-      icon: <Heart className="w-6 h-6" />,
-      title: 'Strong Social Connections',
-      description: `${childName} frequently writes about friends and social activities, indicating healthy peer relationships. Recent entries show excitement about collaborative school projects.`,
-      confidence: 95,
-      date: 'Today'
-    },
-    {
-      type: 'opportunity',
-      icon: <Lightbulb className="w-6 h-6" />,
-      title: 'Growing Creative Interest',
-      description: 'Detected increased mentions of art, drawing, and creative projects. Consider encouraging artistic activities or providing creative resources.',
-      confidence: 88,
-      date: 'Yesterday'
-    },
-    {
-      type: 'neutral',
-      icon: <MessageCircle className="w-6 h-6" />,
-      title: 'Academic Engagement',
-      description: 'Writing shows consistent interest in science topics, particularly space and animals. Emotional tone remains positive when discussing learning.',
-      confidence: 92,
-      date: '2 days ago'
-    },
-    {
-      type: 'attention',
-      icon: <AlertCircle className="w-6 h-6" />,
-      title: 'Slight Sleep Pattern Concern',
-      description: 'Recent entries mention feeling tired in the morning. Consider reviewing bedtime routines and screen time before sleep.',
-      confidence: 78,
-      date: '3 days ago'
-    },
-  ];
-
-  const recommendations = insightData?.recommendations?.length ? insightData.recommendations.map((item: any) => ({
+  }));
+  const displayRecommendations = (insightData?.recommendations || []).map((item: any) => ({
     ...item,
-    icon: item.icon || <CheckCircle className="w-5 h-5" />,
-  })) : [
-    {
-      category: 'Activity',
-      suggestion: 'Art & Creativity Workshop',
-      reason: `Based on ${childName}'s recent interests in creative expression and drawing`,
-      icon: '🎨'
-    },
-    {
-      category: 'Reading',
-      suggestion: 'Space & Astronomy Books',
-      reason: 'Aligns with demonstrated curiosity about science and space topics',
-      icon: '📚'
-    },
-    {
-      category: 'Social',
-      suggestion: 'Group Activities',
-      reason: 'Strong social engagement patterns suggest enjoyment of collaborative experiences',
-      icon: '👥'
-    },
-    {
-      category: 'Routine',
-      suggestion: 'Earlier Bedtime Routine',
-      reason: 'May help address mentions of morning tiredness',
-      icon: '😴'
-    },
-  ];
-
-  const emotionalTrends = insightData?.emotionalTrends?.data?.length ? insightData.emotionalTrends.data : [
-    { mood: 'Happy', percentage: 65, change: '+5%', trend: 'up' },
-    { mood: 'Excited', percentage: 20, change: '+3%', trend: 'up' },
-    { mood: 'Calm', percentage: 10, change: '-2%', trend: 'down' },
-    { mood: 'Worried', percentage: 5, change: '-1%', trend: 'down' },
-  ];
+    category: item.category || item.type || 'Suggestion',
+    suggestion: item.suggestion || item.title,
+    reason: item.reason || item.description,
+    icon: <CheckCircle className="w-5 h-5 text-[var(--parent-teal)]" />,
+  }));
+  const displayEmotionalTrends = insightData?.emotionalTrends?.data || [];
+  const overallWellbeing = insightData?.overallWellbeing || {
+    label: 'Not available',
+    message: 'AI insights will appear after shared mood analysis data is available.',
+  };
 
   return (
     <div className="min-h-screen bg-[var(--parent-bg)] flex">
@@ -154,10 +96,9 @@ export function ParentInsightsScreen({ childName, parentId, onNavigate, onLogout
                 <CheckCircle className="w-8 h-8 sm:w-10 sm:h-10 text-green-600" />
               </div>
               <div className="flex-1">
-                <h3 className="text-[#2d3748] mb-2 text-lg sm:text-xl">Overall Wellbeing: Excellent</h3>
+                <h3 className="text-[#2d3748] mb-2 text-lg sm:text-xl">Overall Wellbeing: {overallWellbeing.label}</h3>
                 <p className="text-[#64748b] text-sm sm:text-base">
-                  {childName} is demonstrating healthy emotional development with strong positive sentiment, active social engagement, 
-                  and growing creative expression. No concerning patterns detected in recent entries.
+                  {overallWellbeing.message}
                 </p>
               </div>
             </div>
@@ -167,7 +108,7 @@ export function ParentInsightsScreen({ childName, parentId, onNavigate, onLogout
           <div>
             <h2 className="text-[#2d3748] mb-4 text-lg sm:text-xl">Key Insights</h2>
             <div className="space-y-3 sm:space-y-4">
-              {insights.map((insight, index) => (
+              {displayInsights.length ? displayInsights.map((insight, index) => (
                 <Card key={index} variant="parent" className={`
                   ${insight.type === 'positive' ? 'border-l-4 border-green-500' : ''}
                   ${insight.type === 'attention' ? 'border-l-4 border-yellow-500' : ''}
@@ -187,7 +128,9 @@ export function ParentInsightsScreen({ childName, parentId, onNavigate, onLogout
                       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-2">
                         <h4 className="text-[#2d3748] text-base sm:text-lg">{insight.title}</h4>
                         <div className="flex items-center gap-2">
-                          <Badge variant="parent-slate" className="text-xs">{insight.confidence}% confident</Badge>
+                          {insight.confidence !== null && (
+                            <Badge variant="parent-slate" className="text-xs">{insight.confidence}% confident</Badge>
+                          )}
                           <span className="text-xs text-[#64748b]">{insight.date}</span>
                         </div>
                       </div>
@@ -195,7 +138,11 @@ export function ParentInsightsScreen({ childName, parentId, onNavigate, onLogout
                     </div>
                   </div>
                 </Card>
-              ))}
+              )) : (
+                <Card variant="parent" className="bg-gray-50">
+                  <p className="text-sm text-[#64748b]">No AI insights are available yet. Shared mood analysis data will appear here once it exists and privacy settings allow it.</p>
+                </Card>
+              )}
             </div>
           </div>
 
@@ -206,7 +153,7 @@ export function ParentInsightsScreen({ childName, parentId, onNavigate, onLogout
               <div className="space-y-4">
                 <h3 className="text-[#2d3748] text-lg sm:text-xl">Emotional Trends</h3>
                 <div className="space-y-3">
-                  {emotionalTrends.map((trend) => (
+                  {displayEmotionalTrends.length ? displayEmotionalTrends.map((trend: any) => (
                     <div key={trend.mood} className="space-y-2">
                       <div className="flex items-center justify-between text-sm">
                         <span className="text-[#2d3748]">{trend.mood}</span>
@@ -229,7 +176,11 @@ export function ParentInsightsScreen({ childName, parentId, onNavigate, onLogout
                         />
                       </div>
                     </div>
-                  ))}
+                  )) : (
+                    <div className="rounded-xl bg-gray-50 p-4 text-sm text-[#64748b]">
+                      No emotional trend data available yet.
+                    </div>
+                  )}
                 </div>
               </div>
             </Card>
@@ -242,7 +193,7 @@ export function ParentInsightsScreen({ childName, parentId, onNavigate, onLogout
                   <h3 className="text-[#2d3748] text-lg sm:text-xl">AI Recommendations</h3>
                 </div>
                 <div className="space-y-3">
-                  {recommendations.map((rec, index) => (
+                  {displayRecommendations.length ? displayRecommendations.map((rec, index) => (
                     <div key={index} className="p-3 sm:p-4 bg-gradient-to-r from-[var(--parent-teal)]/5 to-blue-50 rounded-xl">
                       <div className="flex items-start gap-3">
                         <span className="text-2xl flex-shrink-0">{rec.icon}</span>
@@ -255,7 +206,11 @@ export function ParentInsightsScreen({ childName, parentId, onNavigate, onLogout
                         </div>
                       </div>
                     </div>
-                  ))}
+                  )) : (
+                    <div className="rounded-xl bg-gray-50 p-4 text-sm text-[#64748b]">
+                      No recommendations are available yet.
+                    </div>
+                  )}
                 </div>
               </div>
             </Card>
