@@ -4,15 +4,16 @@ import { Button } from '../components/Button';
 import { Badge } from '../components/Badge';
 import { LogoutConfirmation } from '../components/LogoutConfirmation';
 import { ChildSidebar } from '../components/ChildSidebar';
+import { ChildAvatar } from '../components/ChildAvatar';
 import { MobileMenuButton } from '../components/MobileMenuButton';
-import { Sparkles, PenLine, BookOpen, Settings, LogOut, Calendar, Trophy, Home, Wand2, Smile, Star, Heart, RefreshCw } from 'lucide-react';
-const logo = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="%232d3748" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M8 14s1.5-2 4-2 4 2 4 2"/></svg>';
+import { Sparkles, PenLine, BookOpen, Calendar, Trophy, Home, Wand2, Smile, Star, Heart, RefreshCw } from 'lucide-react';
 import { api, type Journal, type MoodAnalysis, type Story } from '../services/api';
 import { formatShortDate } from '../services/journalAdapters';
 import { toast } from 'sonner';
 
 interface ChildHomeScreenRedesignedProps {
   childName: string;
+  childAvatar?: string;
   childId?: string;
   onNewEntry: () => void;
   onViewMemories: () => void;
@@ -25,6 +26,7 @@ interface ChildHomeScreenRedesignedProps {
 
 export function ChildHomeScreenRedesigned({ 
   childName, 
+  childAvatar,
   childId,
   onNewEntry, 
   onViewMemories, 
@@ -254,6 +256,7 @@ export function ChildHomeScreenRedesigned({
         <MobileMenuButton onClick={() => setIsSidebarOpen(true)} />
         <ChildSidebar
           childName={childName}
+          childAvatar={childAvatar}
           activeItem={activeTab}
           onNavigate={handleNavigation}
           onLogout={() => setShowLogoutConfirm(true)}
@@ -267,6 +270,7 @@ export function ChildHomeScreenRedesigned({
       <div className="hidden lg:block">
         <ChildSidebar
           childName={childName}
+          childAvatar={childAvatar}
           activeItem={activeTab}
           onNavigate={handleNavigation}
           onLogout={() => setShowLogoutConfirm(true)}
@@ -274,76 +278,6 @@ export function ChildHomeScreenRedesigned({
           streakDays={currentStreak}
         />
       </div>
-      {false && (
-      <aside className="hidden lg:flex w-64 bg-white border-r border-gray-200 shadow-lg flex-col">
-        {/* Logo/Profile Section */}
-        <div className="p-6 border-b border-gray-200">
-          <div className="flex items-center gap-3 mb-4">
-            <img 
-              src={logo} 
-              alt="CharmChime Logo" 
-              className="w-12 h-12 object-contain"
-            />
-            <div className="flex-1">
-              <h3 className="text-[#2d3748]">CharmChime</h3>
-            </div>
-          </div>
-          
-          {/* User Info */}
-          <div className="bg-gradient-to-br from-[var(--child-blue)]/10 to-[var(--child-mint)]/10 rounded-2xl p-3">
-            <div className="flex items-center gap-2">
-              <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[var(--child-yellow)] to-[var(--child-peach)] flex items-center justify-center">
-                <span className="text-xl">🌟</span>
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm text-[#2d3748] truncate">{childName}</p>
-                <p className="text-xs text-[#64748b]">{currentStreak}-day streak 🔥</p>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Navigation Menu */}
-        <nav className="flex-1 p-4 space-y-2">
-          {menuItems.map(item => (
-            <button
-              key={item.id}
-              onClick={item.onClick || (() => setActiveTab(item.id))}
-              className={`
-                w-full flex items-center gap-3 px-4 py-3 rounded-xl
-                transition-all duration-200
-                ${activeTab === item.id || item.active
-                  ? 'bg-[var(--child-blue)] text-[#1a365d] shadow-md'
-                  : 'text-[#64748b] hover:bg-gray-50'
-                }
-              `}
-            >
-              {item.icon}
-              <span>{item.label}</span>
-            </button>
-          ))}
-        </nav>
-
-        {/* Bottom Actions */}
-        <div className="p-4 border-t border-gray-200 space-y-2">
-          <button 
-            onClick={onSettings}
-            className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-[#64748b] hover:bg-gray-50 transition-colors"
-          >
-            <Settings className="w-5 h-5" />
-            <span>Settings</span>
-          </button>
-          <button 
-            onClick={() => setShowLogoutConfirm(true)}
-            className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-[#64748b] hover:bg-red-50 hover:text-red-600 transition-colors"
-          >
-            <LogOut className="w-5 h-5" />
-            <span>Logout</span>
-          </button>
-        </div>
-      </aside>
-      )}
-
       {/* Main Content Area */}
       <main className="flex-1 overflow-auto">
         {/* Header */}
@@ -382,9 +316,7 @@ export function ChildHomeScreenRedesigned({
           {/* Avatar Greeting Card */}
           <Card variant="child" className="bg-gradient-to-br from-white to-[var(--child-lavender)]/20">
             <div className="flex items-center gap-6">
-              <div className="w-20 h-20 rounded-full bg-gradient-to-br from-[var(--child-yellow)] to-[var(--child-peach)] flex items-center justify-center shadow-[0_8px_24px_rgba(0,0,0,0.1)] flex-shrink-0">
-                <span className="text-4xl">🌟</span>
-              </div>
+              <ChildAvatar avatar={childAvatar} name={childName} size="xl" />
               <div className="flex-1">
                 <h3 className="text-[#2d3748] mb-2">Hey there, friend! 💫</h3>
                 <p className="text-[#4a5568]">

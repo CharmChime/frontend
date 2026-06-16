@@ -7,15 +7,19 @@ import { FileText, Download, Calendar, Mail, BarChart3, PieChart, Eye } from 'lu
 import { LogoutConfirmation } from '../components/LogoutConfirmation';
 import { api, type Parent } from '../services/api';
 import { toast } from 'sonner';
+import { ParentThemeToggle } from '../components/ParentThemeToggle';
 
 interface ParentReportsScreenProps {
   childName: string;
+  childAvatar?: string;
   parentId?: string;
+  theme?: 'light' | 'dark';
+  onThemeToggle?: () => Promise<void>;
   onNavigate: (page: string) => void;
   onLogout: () => void;
 }
 
-export function ParentReportsScreen({ childName, parentId, onNavigate, onLogout }: ParentReportsScreenProps) {
+export function ParentReportsScreen({ childName, childAvatar, parentId, theme = 'light', onThemeToggle, onNavigate, onLogout }: ParentReportsScreenProps) {
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [reportData, setReportData] = useState<any | null>(null);
   const [reportMessage, setReportMessage] = useState('');
@@ -186,6 +190,7 @@ export function ParentReportsScreen({ childName, parentId, onNavigate, onLogout 
     <div className="min-h-screen bg-[var(--parent-bg)] flex">
       <ParentSidebar 
         childName={childName}
+        childAvatar={childAvatar}
         activeItem="reports"
         onNavigate={onNavigate}
         onLogout={() => setShowLogoutConfirm(true)}
@@ -200,15 +205,18 @@ export function ParentReportsScreen({ childName, parentId, onNavigate, onLogout 
                 <h1 className="text-[#2d3748] text-xl sm:text-2xl lg:text-3xl">Reports & Analytics</h1>
                 <p className="text-[#64748b] mt-1 text-sm sm:text-base">Generate and manage detailed reports for {childName}</p>
               </div>
-              <Button
-                variant="parent-teal"
-                size="medium"
-                icon={<Download className="w-5 h-5" />}
-                onClick={() => handleDownloadReport({ title: 'All Reports', type: 'all', description: 'Complete report bundle' })}
-              >
-                <span className="hidden sm:inline">Download All</span>
-                <span className="sm:hidden">Download</span>
-              </Button>
+              <div className="flex items-center gap-3">
+                <ParentThemeToggle theme={theme} onThemeToggle={onThemeToggle} />
+                <Button
+                  variant="parent-teal"
+                  size="medium"
+                  icon={<Download className="w-5 h-5" />}
+                  onClick={() => handleDownloadReport({ title: 'All Reports', type: 'all', description: 'Complete report bundle' })}
+                >
+                  <span className="hidden sm:inline">Download All</span>
+                  <span className="sm:hidden">Download</span>
+                </Button>
+              </div>
             </div>
           </div>
         </header>

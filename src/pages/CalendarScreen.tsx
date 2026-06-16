@@ -11,12 +11,13 @@ import { api, type Journal } from '../services/api';
 interface CalendarScreenProps {
   onBack: () => void;
   childName?: string;
+  childAvatar?: string;
   childId?: string;
   onNavigate?: (page: string) => void;
   onLogout?: () => void;
 }
 
-export function CalendarScreen({ onBack, childName = 'Friend', childId, onNavigate, onLogout }: CalendarScreenProps) {
+export function CalendarScreen({ onBack, childName = 'Friend', childAvatar, childId, onNavigate, onLogout }: CalendarScreenProps) {
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
@@ -166,6 +167,7 @@ export function CalendarScreen({ onBack, childName = 'Friend', childId, onNaviga
       {onNavigate && onLogout && (
         <ChildSidebar 
           childName={childName}
+          childAvatar={childAvatar}
           activeItem="calendar"
           onNavigate={onNavigate}
           onLogout={() => setShowLogoutConfirm(true)}

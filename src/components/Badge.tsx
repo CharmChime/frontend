@@ -35,7 +35,7 @@ export function Badge({
       `}
     >
       {icon && <span className="flex-shrink-0">{icon}</span>}
-      <span className="text-sm">{children}</span>
+      <span className="text-sm whitespace-nowrap">{children}</span>
     </div>
   );
 }

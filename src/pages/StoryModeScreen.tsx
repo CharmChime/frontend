@@ -14,12 +14,13 @@ import { toast } from 'sonner';
 interface StoryModeScreenProps {
   onBack: () => void;
   childName?: string;
+  childAvatar?: string;
   childId?: string;
   onNavigate?: (page: string) => void;
   onLogout?: () => void;
 }
 
-export function StoryModeScreen({ onBack, childName = 'Friend', childId, onNavigate, onLogout }: StoryModeScreenProps) {
+export function StoryModeScreen({ onBack, childName = 'Friend', childAvatar, childId, onNavigate, onLogout }: StoryModeScreenProps) {
   const [creationMode, setCreationMode] = useState<'journal' | 'prompt'>('prompt');
   const [selectedTheme, setSelectedTheme] = useState('');
   const [storyPrompt, setStoryPrompt] = useState('');
@@ -235,6 +236,7 @@ export function StoryModeScreen({ onBack, childName = 'Friend', childId, onNavig
       {onNavigate && onLogout && (
         <ChildSidebar 
           childName={childName}
+          childAvatar={childAvatar}
           activeItem="story-mode"
           onNavigate={handleSidebarNavigation}
           onLogout={() => setShowLogoutConfirm(true)}

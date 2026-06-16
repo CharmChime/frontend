@@ -42,7 +42,7 @@ const buildQuery = (params?: Record<string, QueryValue>) => {
 
 const getStoredToken = (userType: UserType) => {
   const key = userType === "parent" ? "charmchime_parent_token" : "charmchime_child_token";
-  return localStorage.getItem(key) || "";
+  return localStorage.getItem(key) || sessionStorage.getItem(key) || "";
 };
 
 const authHeaders = (userType: UserType) => {
@@ -252,6 +252,34 @@ export type MoodAnalysis = {
   analyzedAt?: string;
 };
 
+export type AchievementProgress = {
+  childId: string;
+  totalJournalEntries: number;
+  totalStoriesGenerated: number;
+  totalMoodEntries: number;
+  totalWords: number;
+  currentJournalingStreak: number;
+  longestJournalingStreak: number;
+  maxEntriesInOneDay: number;
+  uniqueMoodCount: number;
+  totalPoints: number;
+  unlockedAchievementIds: string[];
+  createdAt?: string;
+  updatedAt?: string;
+};
+
+export type AchievementItem = {
+  id: string;
+  title: string;
+  description: string;
+  metric: string;
+  target: number;
+  currentValue: number;
+  progress: number;
+  unlocked: boolean;
+  unlockedAt?: string | null;
+};
+
 export type JournalCreateResponse = {
   journal: Journal;
   mood?: MoodAnalysis | null;
@@ -300,6 +328,19 @@ export const api = {
         method: "POST",
         body: JSON.stringify(body),
       }),
+    forgotPassword: (body: { userType: OtpUserType; email?: string; name?: string }) =>
+      request<OtpResponse>("/v1/auth/forgot-password", {
+        method: "POST",
+        body: JSON.stringify(body),
+      }),
+    resetPassword: (body:
+      | { userType: "parent"; email: string; otp: string; password: string; confirmPassword: string }
+      | { userType: "child"; email?: string; name?: string; otp: string; pin: string; confirmPin: string }
+    ) =>
+      request<{ userType: OtpUserType; reset: boolean }>("/v1/auth/reset-password", {
+        method: "POST",
+        body: JSON.stringify(body),
+      }),
     logout: (userType: UserType) =>
       request<{ message?: string }>("/v1/auth/logout", {
         method: "POST",
@@ -332,6 +373,17 @@ export const api = {
       }),
     children: () =>
       request<{ children: Child[]; count: number }>("/v1/parents/me/children", {
+        headers: authHeaders("parent"),
+      }),
+    updateChild: (childId: string, body: ChildProfileUpdate) =>
+      request<{ child: Child }>(`/v1/parents/me/children/${childId}`, {
+        method: "PATCH",
+        headers: authHeaders("parent"),
+        body: JSON.stringify(body),
+      }),
+    deleteChild: (childId: string) =>
+      request<{ deleted: boolean; childId: string }>(`/v1/parents/me/children/${childId}`, {
+        method: "DELETE",
         headers: authHeaders("parent"),
       }),
   },
@@ -440,5 +492,17 @@ export const api = {
       request<{ children: Child[] }>(`/v1/dashboard/parent/${parentId}/children`, {
         headers: authHeaders("parent"),
       }),
+  },
+  achievements: {
+    me: () =>
+      request<{ progress: AchievementProgress; achievements: AchievementItem[] }>(
+        "/v1/achievements/me",
+        { headers: authHeaders("child") }
+      ),
+    byChild: (childId: string) =>
+      request<{ progress: AchievementProgress; achievements: AchievementItem[] }>(
+        `/v1/achievements/child/${childId}`,
+        { headers: authHeaders("parent") }
+      ),
   },
 };

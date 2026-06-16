@@ -1,9 +1,11 @@
 import React from 'react';
 import { Sparkles, PenLine, BookOpen, Settings, Calendar, Trophy, LogOut, Home, Wand2, X } from 'lucide-react';
 import logo from '../assets/35160e99e546074153c34366a831aa0e30d421e6.png';
+import { ChildAvatar } from './ChildAvatar';
 
 interface ChildSidebarProps {
   childName: string;
+  childAvatar?: string;
   activeItem?: string;
   onNavigate: (page: string) => void;
   onLogout: () => void;
@@ -15,6 +17,7 @@ interface ChildSidebarProps {
 
 export function ChildSidebar({
   childName,
+  childAvatar,
   activeItem = 'home',
   onNavigate,
   onLogout,
@@ -89,9 +92,7 @@ export function ChildSidebar({
           {/* User Info */}
           <div className="bg-gradient-to-br from-[var(--child-blue)]/10 to-[var(--child-mint)]/10 rounded-2xl p-3">
             <div className="flex items-center gap-2">
-              <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[var(--child-yellow)] to-[var(--child-peach)] flex items-center justify-center">
-                <span className="text-xl">🌟</span>
-              </div>
+              <ChildAvatar avatar={childAvatar} name={childName} size="small" />
               <div className="flex-1 min-w-0">
                 <p className="text-sm text-[#2d3748] truncate">{childName}</p>
                 <p className="text-xs text-[#64748b]">

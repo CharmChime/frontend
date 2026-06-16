@@ -26,6 +26,7 @@ import {
 interface JournalDetailScreenProps {
   onBack: () => void;
   childName?: string;
+  childAvatar?: string;
   childId?: string;
   onNavigate?: (page: string) => void;
   onLogout?: () => void;
@@ -35,6 +36,7 @@ interface JournalDetailScreenProps {
 export function JournalDetailScreen({ 
   onBack, 
   childName = 'Friend', 
+  childAvatar,
   childId,
   onNavigate,
   onLogout,
@@ -348,6 +350,7 @@ export function JournalDetailScreen({
       {onNavigate && onLogout && (
         <ChildSidebar 
           childName={childName}
+          childAvatar={childAvatar}
           activeItem="memories"
           onNavigate={handleSidebarNavigation}
           onLogout={() => setShowLogoutConfirm(true)}

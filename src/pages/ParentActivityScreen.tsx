@@ -5,15 +5,19 @@ import { Badge } from '../components/Badge';
 import { Activity, Clock, PenLine, Sparkles, Filter, Smile } from 'lucide-react';
 import { LogoutConfirmation } from '../components/LogoutConfirmation';
 import { api } from '../services/api';
+import { ParentThemeToggle } from '../components/ParentThemeToggle';
 
 interface ParentActivityScreenProps {
   childName: string;
+  childAvatar?: string;
   parentId?: string;
+  theme?: 'light' | 'dark';
+  onThemeToggle?: () => Promise<void>;
   onNavigate: (page: string) => void;
   onLogout: () => void;
 }
 
-export function ParentActivityScreen({ childName, parentId, onNavigate, onLogout }: ParentActivityScreenProps) {
+export function ParentActivityScreen({ childName, childAvatar, parentId, theme = 'light', onThemeToggle, onNavigate, onLogout }: ParentActivityScreenProps) {
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [filterType, setFilterType] = useState<'all' | 'journal' | 'story' | 'mood'>('all');
   const [activityData, setActivityData] = useState<any | null>(null);
@@ -76,6 +80,7 @@ export function ParentActivityScreen({ childName, parentId, onNavigate, onLogout
     <div className="min-h-screen bg-[var(--parent-bg)] flex">
       <ParentSidebar 
         childName={childName}
+        childAvatar={childAvatar}
         activeItem="activity"
         onNavigate={onNavigate}
         onLogout={() => setShowLogoutConfirm(true)}
@@ -92,10 +97,15 @@ export function ParentActivityScreen({ childName, parentId, onNavigate, onLogout
                   <h1 className="text-[#2d3748] text-xl sm:text-2xl lg:text-3xl">Activity Log</h1>
                   <p className="text-[#64748b] mt-1 text-sm sm:text-base">Track {childName}'s journaling activity and milestones</p>
                 </div>
-                <Badge variant="parent-teal">
-                  <Activity className="w-4 h-4 mr-1" />
-                  {filteredActivities.length} Activities
-                </Badge>
+                <div className="flex items-center gap-3">
+                  <ParentThemeToggle theme={theme} onThemeToggle={onThemeToggle} />
+                  <Badge
+                    variant="parent-teal"
+                    icon={<Activity className="w-4 h-4" />}
+                  >
+                    {filteredActivities.length} Activities
+                  </Badge>
+                </div>
               </div>
 
               {/* Filters */}

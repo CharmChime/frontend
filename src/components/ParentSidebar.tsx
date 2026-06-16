@@ -1,9 +1,11 @@
 import React from 'react';
 import { Shield, Home, Users, BarChart, FileText, Bell, Settings, LogOut, Activity, TrendingUp, X } from 'lucide-react';
 import logo from '../assets/35160e99e546074153c34366a831aa0e30d421e6.png';
+import { ChildAvatar } from './ChildAvatar';
 
 interface ParentSidebarProps {
   childName: string;
+  childAvatar?: string;
   activeItem?: string;
   onNavigate: (page: string) => void;
   onLogout: () => void;
@@ -12,7 +14,7 @@ interface ParentSidebarProps {
   onLogoClick?: () => void;
 }
 
-export function ParentSidebar({ childName, activeItem = 'overview', onNavigate, onLogout, isOpen = true, onClose, onLogoClick }: ParentSidebarProps) {
+export function ParentSidebar({ childName, childAvatar, activeItem = 'overview', onNavigate, onLogout, isOpen = true, onClose, onLogoClick }: ParentSidebarProps) {
   const menuItems = [
     { id: 'overview', label: 'Overview', icon: <Home className="w-5 h-5" /> },
     { id: 'analytics', label: 'Analytics', icon: <BarChart className="w-5 h-5" /> },
@@ -80,9 +82,7 @@ export function ParentSidebar({ childName, activeItem = 'overview', onNavigate, 
           {/* Child Info */}
           <div className="bg-[var(--parent-teal)]/10 rounded-xl p-3">
             <div className="flex items-center gap-2">
-              <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[var(--child-yellow)] to-[var(--child-peach)] flex items-center justify-center">
-                <span className="text-xl">👦</span>
-              </div>
+              <ChildAvatar avatar={childAvatar} name={childName} size="small" />
               <div className="flex-1 min-w-0">
                 <p className="text-sm text-[#2d3748] truncate">Monitoring</p>
                 <p className="text-xs text-[#64748b]">{childName}</p>

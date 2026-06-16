@@ -5,15 +5,19 @@ import { Badge } from '../components/Badge';
 import { Brain, Sparkles, TrendingUp, AlertCircle, CheckCircle, Lightbulb, Heart, MessageCircle } from 'lucide-react';
 import { LogoutConfirmation } from '../components/LogoutConfirmation';
 import { api } from '../services/api';
+import { ParentThemeToggle } from '../components/ParentThemeToggle';
 
 interface ParentInsightsScreenProps {
   childName: string;
+  childAvatar?: string;
   parentId?: string;
+  theme?: 'light' | 'dark';
+  onThemeToggle?: () => Promise<void>;
   onNavigate: (page: string) => void;
   onLogout: () => void;
 }
 
-export function ParentInsightsScreen({ childName, parentId, onNavigate, onLogout }: ParentInsightsScreenProps) {
+export function ParentInsightsScreen({ childName, childAvatar, parentId, theme = 'light', onThemeToggle, onNavigate, onLogout }: ParentInsightsScreenProps) {
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [insightData, setInsightData] = useState<any | null>(null);
 
@@ -62,6 +66,7 @@ export function ParentInsightsScreen({ childName, parentId, onNavigate, onLogout
     <div className="min-h-screen bg-[var(--parent-bg)] flex">
       <ParentSidebar 
         childName={childName}
+        childAvatar={childAvatar}
         activeItem="insights"
         onNavigate={onNavigate}
         onLogout={() => setShowLogoutConfirm(true)}
@@ -79,10 +84,16 @@ export function ParentInsightsScreen({ childName, parentId, onNavigate, onLogout
                 </div>
                 <p className="text-[#64748b] mt-1 text-sm sm:text-base">Intelligent analysis of {childName}'s emotional wellbeing</p>
               </div>
-              <Badge variant="parent-teal" className="w-fit">
-                <Sparkles className="w-4 h-4 mr-1" />
-                AI Analysis
-              </Badge>
+              <div className="flex items-center gap-3">
+                <ParentThemeToggle theme={theme} onThemeToggle={onThemeToggle} />
+                <Badge
+                  variant="parent-teal"
+                  icon={<Sparkles className="w-4 h-4" />}
+                  className="w-fit"
+                >
+                  AI Analysis
+                </Badge>
+              </div>
             </div>
           </div>
         </header>
