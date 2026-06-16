@@ -7,24 +7,17 @@ import { LogoutConfirmation } from '../components/LogoutConfirmation';
 import { ArrowLeft, User, Bell, Shield } from 'lucide-react';
 import { api, type Child } from '../services/api';
 import { toast } from 'sonner';
+import { ChildAvatar } from '../components/ChildAvatar';
+import { avatarPresets } from '../services/avatar';
 
 interface ChildSettingsScreenProps {
   onBack: () => void;
   childName: string;
+  childAvatar?: string;
   onNavigate?: (page: string) => void;
   onLogout?: () => void;
   onProfileUpdated?: (child: Child) => void;
 }
-
-const avatarOptions = ['star', 'rainbow', 'rocket', 'palette', 'theater', 'target'];
-const avatarLabel: Record<string, string> = {
-  star: '*',
-  rainbow: 'RB',
-  rocket: 'RK',
-  palette: 'PA',
-  theater: 'TH',
-  target: 'TG',
-};
 
 const readBooleanPreference = (
   preferences: Record<string, unknown> | undefined,
@@ -37,16 +30,18 @@ const readBooleanPreference = (
 export function ChildSettingsScreen({
   onBack,
   childName,
+  childAvatar,
   onNavigate,
   onLogout,
   onProfileUpdated,
 }: ChildSettingsScreenProps) {
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
   const [shareMoodEnabled, setShareMoodEnabled] = useState(true);
-  const [avatar, setAvatar] = useState('star');
+  const [avatar, setAvatar] = useState(childAvatar || 'sunny-spark');
   const [name, setName] = useState(childName);
   const [nickname, setNickname] = useState('');
   const [age, setAge] = useState('');
+  const [savedPreferences, setSavedPreferences] = useState<Record<string, unknown>>({});
   const [isLoadingProfile, setIsLoadingProfile] = useState(true);
   const [isSavingProfile, setIsSavingProfile] = useState(false);
   const [settingsMessage, setSettingsMessage] = useState('');
@@ -68,7 +63,8 @@ export function ChildSettingsScreen({
         setName(child.name || childName);
         setNickname(child.nickname || '');
         setAge(child.age ? String(child.age) : '');
-        setAvatar(child.avatar || 'star');
+        setAvatar(child.avatar || 'sunny-spark');
+        setSavedPreferences(child.preferences || {});
         setNotificationsEnabled(
           readBooleanPreference(child.preferences, 'notificationsEnabled', true)
         );
@@ -132,12 +128,14 @@ export function ChildSettingsScreen({
         age: parsedAge,
         avatar,
         preferences: {
+          ...savedPreferences,
           notificationsEnabled,
           shareMoodEnabled,
         },
       });
 
       onProfileUpdated?.(child);
+      setSavedPreferences(child.preferences || {});
       setSettingsMessage('Profile saved successfully.');
       toast.success('Profile saved successfully.');
     } catch (error) {
@@ -156,6 +154,7 @@ export function ChildSettingsScreen({
       {onNavigate && onLogout && (
         <ChildSidebar
           childName={name || childName}
+          childAvatar={avatar}
           activeItem="settings"
           onNavigate={handleSidebarNavigation}
           onLogout={() => setShowLogoutConfirm(true)}
@@ -256,21 +255,34 @@ export function ChildSettingsScreen({
 
                 <div>
                   <label className="block text-[#4a5568] mb-3 text-sm sm:text-base">Choose Your Avatar</label>
-                  <div className="grid grid-cols-3 sm:grid-cols-6 gap-2 sm:gap-3">
-                    {avatarOptions.map((option) => (
+                  <div className="rounded-3xl bg-gradient-to-br from-[var(--child-blue)]/20 via-white to-[var(--child-mint)]/20 p-4">
+                    <div className="mb-4 flex items-center gap-4">
+                      <ChildAvatar avatar={avatar} name={name || childName} size="xl" />
+                      <div>
+                        <p className="text-[#2d3748] text-base sm:text-lg">This is your CharmChime buddy</p>
+                        <p className="text-xs sm:text-sm text-[#64748b]">Pick the one that feels most like you.</p>
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+                    {avatarPresets.map((option) => (
                       <button
-                        key={option}
-                        onClick={() => setAvatar(option)}
+                        key={option.id}
+                        onClick={() => {
+                          setAvatar(option.id);
+                          toast.info(`${option.label} avatar selected. Save changes to keep it.`);
+                        }}
                         disabled={isLoadingProfile || isSavingProfile}
-                        className={`aspect-square rounded-2xl text-sm font-semibold flex items-center justify-center transition-all duration-200 ${
-                          avatar === option
-                            ? 'bg-[var(--child-blue)] scale-105 shadow-lg text-[#1a365d]'
-                            : 'bg-white hover:bg-gray-50 hover:scale-105 text-[#64748b]'
+                        className={`rounded-3xl bg-white p-3 text-sm font-semibold transition-all duration-200 ${
+                          avatar === option.id
+                            ? 'scale-105 shadow-lg ring-4 ring-[var(--child-yellow)]'
+                            : 'shadow-sm hover:scale-105 hover:shadow-md'
                         }`}
                       >
-                        {avatarLabel[option] || option.slice(0, 2).toUpperCase()}
+                        <ChildAvatar avatar={option.id} name={name || childName} size="large" className="mx-auto mb-2" />
+                        <span className="block text-[#2d3748]">{option.label}</span>
                       </button>
                     ))}
+                    </div>
                   </div>
                 </div>
               </div>

@@ -6,22 +6,60 @@ import { Shield, Lock, Mail, User, ArrowLeft, Activity } from 'lucide-react';
 import logo from '../assets/35160e99e546074153c34366a831aa0e30d421e6.png';
 
 interface ParentAuthScreenProps {
-  onLogin: (email: string, password: string) => Promise<void>;
+  onLogin: (email: string, password: string, rememberMe: boolean) => Promise<void>;
   onRegister: (name: string, email: string, password: string) => Promise<void>;
+  onRequestPasswordReset: (email: string) => Promise<void>;
+  onResetPassword: (email: string, otp: string, password: string) => Promise<void>;
   onBack: () => void;
 }
 
-export function ParentAuthScreen({ onLogin, onRegister, onBack }: ParentAuthScreenProps) {
+export function ParentAuthScreen({ onLogin, onRegister, onRequestPasswordReset, onResetPassword, onBack }: ParentAuthScreenProps) {
   const [isLogin, setIsLogin] = useState(true);
+  const [isResetMode, setIsResetMode] = useState(false);
+  const [resetOtpSent, setResetOtpSent] = useState(false);
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [resetOtp, setResetOtp] = useState('');
+  const [rememberMe, setRememberMe] = useState(false);
   const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleSubmit = async () => {
     setError('');
+    setSuccess('');
+
+    if (isResetMode) {
+      setIsSubmitting(true);
+      try {
+        if (!resetOtpSent) {
+          await onRequestPasswordReset(email);
+          setResetOtpSent(true);
+          setSuccess('Reset OTP sent. Check your email and enter the code below.');
+        } else {
+          if (password !== confirmPassword) {
+            setError('Passwords do not match.');
+            return;
+          }
+
+          await onResetPassword(email, resetOtp, password);
+          setSuccess('Password reset successfully. You can log in now.');
+          setIsResetMode(false);
+          setResetOtpSent(false);
+          setPassword('');
+          setConfirmPassword('');
+          setResetOtp('');
+          setIsLogin(true);
+        }
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Could not reset password. Please try again.');
+      } finally {
+        setIsSubmitting(false);
+      }
+      return;
+    }
 
     if (!isLogin && password !== confirmPassword) {
       setError('Passwords do not match.');
@@ -31,7 +69,7 @@ export function ParentAuthScreen({ onLogin, onRegister, onBack }: ParentAuthScre
     setIsSubmitting(true);
     try {
       if (isLogin) {
-        await onLogin(email, password);
+        await onLogin(email, password, rememberMe);
       } else {
         await onRegister(name, email, password);
       }
@@ -110,7 +148,7 @@ export function ParentAuthScreen({ onLogin, onRegister, onBack }: ParentAuthScre
               </div>
             </div>
 
-            <div className="flex gap-2 bg-gray-100 p-1 rounded-xl">
+            {!isResetMode && <div className="flex gap-2 bg-gray-100 p-1 rounded-xl">
               <button
                 onClick={() => setIsLogin(true)}
                 className={`flex-1 py-2 rounded-lg transition-all ${
@@ -131,7 +169,7 @@ export function ParentAuthScreen({ onLogin, onRegister, onBack }: ParentAuthScre
               >
                 Sign Up
               </button>
-            </div>
+            </div>}
 
             {!isLogin && (
               <div className="bg-[var(--parent-teal)]/10 border border-[var(--parent-teal)]/20 rounded-xl p-4">
@@ -146,7 +184,7 @@ export function ParentAuthScreen({ onLogin, onRegister, onBack }: ParentAuthScre
             )}
 
             <div className="space-y-4">
-              {!isLogin && (
+              {!isLogin && !isResetMode && (
                 <Input
                   label="Full Name"
                   placeholder="John Doe"
@@ -158,7 +196,7 @@ export function ParentAuthScreen({ onLogin, onRegister, onBack }: ParentAuthScre
               )}
 
               <Input
-                label="Email Address"
+                label={isResetMode ? 'Account Email Address' : 'Email Address'}
                 placeholder="parent@example.com"
                 type="email"
                 value={email}
@@ -167,17 +205,28 @@ export function ParentAuthScreen({ onLogin, onRegister, onBack }: ParentAuthScre
                 icon={<Mail className="w-5 h-5" />}
               />
 
-              <Input
-                label={isLogin ? 'Password' : 'Create Password'}
+              {isResetMode && resetOtpSent && (
+                <Input
+                  label="Reset OTP"
+                  placeholder="6-digit code"
+                  value={resetOtp}
+                  onChange={(e) => setResetOtp(e.target.value)}
+                  variant="parent"
+                  icon={<Lock className="w-5 h-5" />}
+                />
+              )}
+
+              {(!isResetMode || resetOtpSent) && <Input
+                label={isResetMode ? 'Create New Password' : isLogin ? 'Password' : 'Create Password'}
                 placeholder="Enter your password"
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 variant="parent"
                 icon={<Lock className="w-5 h-5" />}
-              />
+              />}
 
-              {!isLogin && (
+              {(!isLogin || (isResetMode && resetOtpSent)) && (
                 <Input
                   label="Confirm Password"
                   placeholder="Re-enter your password"
@@ -189,15 +238,28 @@ export function ParentAuthScreen({ onLogin, onRegister, onBack }: ParentAuthScre
                 />
               )}
 
-              {isLogin && (
+              {isLogin && !isResetMode && (
                 <div className="flex items-center justify-between gap-4 text-sm">
                   <label className="flex items-center gap-2 text-[#475569] cursor-pointer">
-                    <input type="checkbox" className="rounded" />
+                    <input
+                      type="checkbox"
+                      className="rounded"
+                      checked={rememberMe}
+                      onChange={(event) => setRememberMe(event.target.checked)}
+                    />
                     <span>Remember me</span>
                   </label>
                   <button
                     type="button"
-                    onClick={() => setError('Password reset is not available yet. Please contact support.')}
+                    onClick={() => {
+                      setError('');
+                      setSuccess('');
+                      setIsResetMode(true);
+                      setResetOtpSent(false);
+                      setPassword('');
+                      setConfirmPassword('');
+                      setResetOtp('');
+                    }}
                     className="text-[var(--parent-teal)] hover:text-[var(--parent-teal-dark)]"
                   >
                     Forgot password?
@@ -213,13 +275,42 @@ export function ParentAuthScreen({ onLogin, onRegister, onBack }: ParentAuthScre
                 className="w-full"
                 disabled={isSubmitting}
               >
-                {isSubmitting ? 'Please wait...' : isLogin ? 'Access Dashboard' : 'Create Account'}
+                {isSubmitting
+                  ? 'Please wait...'
+                  : isResetMode
+                    ? resetOtpSent
+                      ? 'Reset Password'
+                      : 'Send Reset OTP'
+                    : isLogin
+                      ? 'Access Dashboard'
+                      : 'Create Account'}
               </Button>
+
+              {isResetMode && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsResetMode(false);
+                    setResetOtpSent(false);
+                    setError('');
+                    setSuccess('');
+                  }}
+                  className="w-full text-center text-sm text-[var(--parent-teal)] hover:text-[var(--parent-teal-dark)]"
+                >
+                  Back to login
+                </button>
+              )}
             </div>
 
             {error && (
               <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-center text-sm text-red-700">
                 {error}
+              </div>
+            )}
+
+            {success && (
+              <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-center text-sm text-emerald-700">
+                {success}
               </div>
             )}
 

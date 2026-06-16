@@ -11,15 +11,17 @@ import {
   Shield,
   Users,
   Palette,
-  Sun,
-  Moon,
   TrendingUp,
 } from 'lucide-react';
 import { api, type Child, type Parent } from '../services/api';
 import { toast } from 'sonner';
+import { ChildAvatar } from '../components/ChildAvatar';
+import { ParentThemeToggle } from '../components/ParentThemeToggle';
 
 interface ParentSettingsScreenProps {
   onBack: () => void;
+  theme?: 'light' | 'dark';
+  onThemeToggle?: () => Promise<void>;
   onProfileUpdated?: (parent: Parent) => void;
 }
 
@@ -40,11 +42,12 @@ const readStringPreference = (
 };
 
 const applyParentAppearance = (appearance: { theme: 'light' | 'dark'; colorTheme: string }) => {
-  document.documentElement.classList.toggle('dark', appearance.theme === 'dark');
+  document.documentElement.classList.remove('dark');
+  document.documentElement.dataset.parentTheme = appearance.theme;
   document.documentElement.dataset.parentColorTheme = appearance.colorTheme;
 };
 
-export function ParentSettingsScreen({ onBack, onProfileUpdated }: ParentSettingsScreenProps) {
+export function ParentSettingsScreen({ onBack, theme: parentTheme = 'light', onThemeToggle, onProfileUpdated }: ParentSettingsScreenProps) {
   const [parentProfile, setParentProfile] = useState<Parent | null>(null);
   const [linkedChildren, setLinkedChildren] = useState<Child[]>([]);
   const [name, setName] = useState('');
@@ -63,7 +66,7 @@ export function ParentSettingsScreen({ onBack, onProfileUpdated }: ParentSetting
   const [settingsError, setSettingsError] = useState('');
 
   useEffect(() => {
-    const isDark = document.documentElement.classList.contains('dark');
+    const isDark = document.documentElement.dataset.parentTheme === 'dark';
     setTheme(isDark ? 'dark' : 'light');
   }, []);
 
@@ -115,12 +118,6 @@ export function ParentSettingsScreen({ onBack, onProfileUpdated }: ParentSetting
     };
   }, [onProfileUpdated]);
 
-  const handleThemeChange = (newTheme: 'light' | 'dark') => {
-    setTheme(newTheme);
-    applyParentAppearance({ theme: newTheme, colorTheme: selectedColorTheme });
-    toast.info(`${newTheme === 'dark' ? 'Dark' : 'Light'} theme selected. Save changes to keep it.`);
-  };
-
   const handleColorThemeChange = (colorTheme: string) => {
     setSelectedColorTheme(colorTheme);
     applyParentAppearance({ theme, colorTheme });
@@ -153,6 +150,7 @@ export function ParentSettingsScreen({ onBack, onProfileUpdated }: ParentSetting
         name: name.trim(),
         phone: phone.trim() || undefined,
         notificationPreferences: {
+          ...(parentProfile?.notificationPreferences || {}),
           emailNotifications,
           weeklyReports,
           concernAlerts,
@@ -160,6 +158,7 @@ export function ParentSettingsScreen({ onBack, onProfileUpdated }: ParentSetting
           activityNotifications,
         },
         appearancePreferences: {
+          ...(parentProfile?.appearancePreferences || {}),
           theme,
           colorTheme: selectedColorTheme,
         },
@@ -209,6 +208,7 @@ export function ParentSettingsScreen({ onBack, onProfileUpdated }: ParentSetting
                 </p>
               </div>
             </div>
+            <ParentThemeToggle theme={parentTheme} onThemeToggle={onThemeToggle} />
           </div>
         </div>
       </header>
@@ -234,13 +234,20 @@ export function ParentSettingsScreen({ onBack, onProfileUpdated }: ParentSetting
           <Card variant="parent">
             <div className="space-y-4 sm:space-y-6">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-[var(--parent-teal)]/10 flex items-center justify-center">
+                <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-[var(--parent-teal)]/10 flex flex-shrink-0 items-center justify-center">
                   <User className="w-5 h-5 sm:w-6 sm:h-6 text-[var(--parent-teal)]" />
                 </div>
-                <div>
-                  <h3 className="text-[#2d3748] text-lg sm:text-xl">Account Information</h3>
+                <div className="min-w-0">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <h3 className="text-[#2d3748] text-lg sm:text-xl leading-tight">Account Information</h3>
+                    {parentProfile?.isVerified && (
+                      <Badge variant="parent-teal" className="px-2.5 py-1 text-xs">
+                        Verified account
+                      </Badge>
+                    )}
+                  </div>
                   {parentProfile?.isVerified && (
-                    <p className="text-xs text-green-700 mt-1">Verified account</p>
+                    <p className="text-xs text-[#64748b] mt-1">Your email has completed OTP verification.</p>
                   )}
                 </div>
               </div>
@@ -259,15 +266,18 @@ export function ParentSettingsScreen({ onBack, onProfileUpdated }: ParentSetting
 
                 <div>
                   <label className="block text-[#4a5568] mb-2 text-sm sm:text-base">Email Address</label>
-                  <div className="flex gap-2">
+                  <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
                     <input
                       type="email"
                       value={email}
                       readOnly
-                      className="flex-1 px-4 py-3 bg-gray-100 rounded-xl border border-gray-200 text-[#64748b]"
+                      className="min-w-0 px-4 py-3 bg-gray-100 rounded-xl border border-gray-200 text-[#64748b]"
                     />
-                    <Badge variant="parent-teal" className="hidden sm:flex flex-shrink-0 items-center">
-                      <Mail className="w-4 h-4 mr-1" />
+                    <Badge
+                      variant="parent-teal"
+                      icon={<Mail className="w-4 h-4" />}
+                      className="justify-center sm:min-w-[7.5rem]"
+                    >
                       Verified
                     </Badge>
                   </div>
@@ -291,11 +301,11 @@ export function ParentSettingsScreen({ onBack, onProfileUpdated }: ParentSetting
           <Card variant="parent">
             <div className="space-y-4 sm:space-y-6">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-[var(--parent-teal)]/10 flex items-center justify-center">
+                <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-[var(--parent-teal)]/10 flex flex-shrink-0 items-center justify-center">
                   <Users className="w-5 h-5 sm:w-6 sm:h-6 text-[var(--parent-teal)]" />
                 </div>
-                <div>
-                  <h3 className="text-[#2d3748] text-lg sm:text-xl">Children Accounts</h3>
+                <div className="min-w-0">
+                  <h3 className="text-[#2d3748] text-lg sm:text-xl leading-tight">Children Accounts</h3>
                   <p className="text-xs sm:text-sm text-[#64748b]">
                     {linkedChildren.length} linked {linkedChildren.length === 1 ? 'child' : 'children'}
                   </p>
@@ -310,11 +320,7 @@ export function ParentSettingsScreen({ onBack, onProfileUpdated }: ParentSetting
                       className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 sm:p-4 bg-gradient-to-r from-[var(--child-blue)]/20 to-[var(--child-mint)]/20 rounded-xl"
                     >
                       <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-gradient-to-br from-[var(--child-yellow)] to-[var(--child-peach)] flex items-center justify-center flex-shrink-0">
-                          <span className="text-sm font-semibold text-[#744210]">
-                            {(child.nickname || child.name || '?').slice(0, 2).toUpperCase()}
-                          </span>
-                        </div>
+                        <ChildAvatar avatar={child.avatar} name={child.nickname || child.name || 'Child'} size="medium" />
                         <div>
                           <p className="text-[#2d3748] text-sm sm:text-base">
                             {child.nickname || child.name}
@@ -339,15 +345,15 @@ export function ParentSettingsScreen({ onBack, onProfileUpdated }: ParentSetting
           <Card variant="parent">
             <div className="space-y-4 sm:space-y-6">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-[var(--parent-teal)]/10 flex items-center justify-center">
+                <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-[var(--parent-teal)]/10 flex flex-shrink-0 items-center justify-center">
                   <Lock className="w-5 h-5 sm:w-6 sm:h-6 text-[var(--parent-teal)]" />
                 </div>
-                <h3 className="text-[#2d3748] text-lg sm:text-xl">Security</h3>
+                <h3 className="text-[#2d3748] text-lg sm:text-xl leading-tight">Security</h3>
               </div>
 
-              <div className="p-3 sm:p-4 bg-blue-50 rounded-xl">
+              <div className="p-3 sm:p-4 bg-[var(--parent-teal)]/10 rounded-xl">
                 <div className="flex items-start gap-3">
-                  <Shield className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
+                  <Shield className="w-5 h-5 text-[var(--parent-teal)] flex-shrink-0 mt-0.5" />
                   <div>
                     <p className="text-[#2d3748] text-sm sm:text-base mb-1">Security Status: Good</p>
                     <p className="text-xs sm:text-sm text-[#64748b]">
@@ -362,10 +368,10 @@ export function ParentSettingsScreen({ onBack, onProfileUpdated }: ParentSetting
           <Card variant="parent">
             <div className="space-y-4 sm:space-y-6">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-[var(--parent-teal)]/10 flex items-center justify-center">
+                <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-[var(--parent-teal)]/10 flex flex-shrink-0 items-center justify-center">
                   <Bell className="w-5 h-5 sm:w-6 sm:h-6 text-[var(--parent-teal)]" />
                 </div>
-                <h3 className="text-[#2d3748] text-lg sm:text-xl">Notifications</h3>
+                <h3 className="text-[#2d3748] text-lg sm:text-xl leading-tight">Notifications</h3>
               </div>
 
               <div className="space-y-4">
@@ -439,57 +445,13 @@ export function ParentSettingsScreen({ onBack, onProfileUpdated }: ParentSetting
           <Card variant="parent">
             <div className="space-y-4 sm:space-y-6">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-[var(--parent-teal)]/10 flex items-center justify-center">
+                <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-[var(--parent-teal)]/10 flex flex-shrink-0 items-center justify-center">
                   <Palette className="w-5 h-5 sm:w-6 sm:h-6 text-[var(--parent-teal)]" />
                 </div>
-                <h3 className="text-[#2d3748] text-lg sm:text-xl">Appearance</h3>
+                <h3 className="text-[#2d3748] text-lg sm:text-xl leading-tight">Appearance</h3>
               </div>
 
               <div className="space-y-3">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 sm:p-4 bg-gray-50 rounded-xl">
-                  <div className="flex items-center gap-3">
-                    <Sun className="w-5 h-5 text-[#64748b]" />
-                    <div>
-                      <p className="text-[#2d3748] text-sm sm:text-base">Light Theme</p>
-                      <p className="text-xs sm:text-sm text-[#64748b]">Switch to light mode</p>
-                    </div>
-                  </div>
-                  <button
-                    onClick={() => handleThemeChange('light')}
-                    className={`w-14 h-8 rounded-full transition-all duration-200 flex-shrink-0 ${
-                      theme === 'light' ? 'bg-[var(--parent-teal)]' : 'bg-gray-300'
-                    }`}
-                  >
-                    <div
-                      className={`w-6 h-6 bg-white rounded-full shadow-md transition-transform duration-200 mt-1 ${
-                        theme === 'light' ? 'translate-x-7' : 'translate-x-1'
-                      }`}
-                    />
-                  </button>
-                </div>
-
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 sm:p-4 bg-gray-50 rounded-xl">
-                  <div className="flex items-center gap-3">
-                    <Moon className="w-5 h-5 text-[#64748b]" />
-                    <div>
-                      <p className="text-[#2d3748] text-sm sm:text-base">Dark Theme</p>
-                      <p className="text-xs sm:text-sm text-[#64748b]">Switch to dark mode</p>
-                    </div>
-                  </div>
-                  <button
-                    onClick={() => handleThemeChange('dark')}
-                    className={`w-14 h-8 rounded-full transition-all duration-200 flex-shrink-0 ${
-                      theme === 'dark' ? 'bg-[var(--parent-teal)]' : 'bg-gray-300'
-                    }`}
-                  >
-                    <div
-                      className={`w-6 h-6 bg-white rounded-full shadow-md transition-transform duration-200 mt-1 ${
-                        theme === 'dark' ? 'translate-x-7' : 'translate-x-1'
-                      }`}
-                    />
-                  </button>
-                </div>
-
                 <div className="space-y-2">
                   <label className="block text-[#4a5568] mb-2 text-sm sm:text-base">Color Theme</label>
                   <div className="flex gap-2">

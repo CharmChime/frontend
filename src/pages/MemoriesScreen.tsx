@@ -27,13 +27,14 @@ import { toast } from 'sonner';
 interface MemoriesScreenProps {
   onBack: () => void;
   childName?: string;
+  childAvatar?: string;
   childId?: string;
   onNavigate?: (page: string) => void;
   onLogout?: () => void;
   onViewEntry?: (entryId: string) => void;
 }
 
-export function MemoriesScreen({ onBack, childName = 'Friend', childId, onNavigate, onLogout, onViewEntry }: MemoriesScreenProps) {
+export function MemoriesScreen({ onBack, childName = 'Friend', childAvatar, childId, onNavigate, onLogout, onViewEntry }: MemoriesScreenProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedFilter, setSelectedFilter] = useState('all');
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
@@ -293,6 +294,7 @@ export function MemoriesScreen({ onBack, childName = 'Friend', childId, onNaviga
       {onNavigate && onLogout && (
         <ChildSidebar 
           childName={childName}
+          childAvatar={childAvatar}
           activeItem="memories"
           onNavigate={handleSidebarNavigation}
           onLogout={() => setShowLogoutConfirm(true)}

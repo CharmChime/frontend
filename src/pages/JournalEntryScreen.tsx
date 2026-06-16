@@ -24,12 +24,13 @@ interface JournalEntryScreenProps {
   onBack: () => void;
   onSave?: () => void;
   childName?: string;
+  childAvatar?: string;
   childId?: string;
   onNavigate?: (page: string) => void;
   onLogout?: () => void;
 }
 
-export function JournalEntryScreen({ onBack, onSave, childName = 'Friend', childId, onNavigate, onLogout }: JournalEntryScreenProps) {
+export function JournalEntryScreen({ onBack, onSave, childName = 'Friend', childAvatar, childId, onNavigate, onLogout }: JournalEntryScreenProps) {
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
   const [selectedTag, setSelectedTag] = useState('');
@@ -345,6 +346,7 @@ export function JournalEntryScreen({ onBack, onSave, childName = 'Friend', child
       {onNavigate && onLogout && (
         <ChildSidebar 
           childName={childName}
+          childAvatar={childAvatar}
           activeItem="entry"
           onNavigate={handleSidebarNavigation}
           onLogout={() => setShowLogoutConfirm(true)}

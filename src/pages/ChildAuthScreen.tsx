@@ -6,33 +6,79 @@ import { Sparkles, Heart, Star, ArrowLeft, Mail } from 'lucide-react';
 import logo from '../assets/35160e99e546074153c34366a831aa0e30d421e6.png';
 
 interface ChildAuthScreenProps {
-  onLogin: (name: string, pin: string) => Promise<void>;
+  onLogin: (name: string, pin: string, rememberMe: boolean) => Promise<void>;
   onRegister: (name: string, email: string, age: string, pin: string) => Promise<void>;
+  onRequestPinReset: (name: string, email: string) => Promise<void>;
+  onResetPin: (name: string, email: string, otp: string, pin: string) => Promise<void>;
   onBack: () => void;
 }
 
-export function ChildAuthScreen({ onLogin, onRegister, onBack }: ChildAuthScreenProps) {
+export function ChildAuthScreen({ onLogin, onRegister, onRequestPinReset, onResetPin, onBack }: ChildAuthScreenProps) {
   const [isLogin, setIsLogin] = useState(true);
+  const [isResetMode, setIsResetMode] = useState(false);
+  const [resetOtpSent, setResetOtpSent] = useState(false);
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [age, setAge] = useState('');
   const [pin, setPin] = useState('');
   const [confirmPin, setConfirmPin] = useState('');
+  const [resetOtp, setResetOtp] = useState('');
+  const [rememberMe, setRememberMe] = useState(false);
   const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleSubmit = async () => {
     setError('');
+    setSuccess('');
+
+    if (isResetMode) {
+      setIsSubmitting(true);
+      try {
+        if (!resetOtpSent) {
+          await onRequestPinReset(name, email);
+          setResetOtpSent(true);
+          setSuccess('Reset OTP sent. Ask your parent or guardian to check the email.');
+        } else {
+          if (pin !== confirmPin) {
+            setError('PINs do not match.');
+            return;
+          }
+
+          await onResetPin(name, email, resetOtp, pin);
+          setSuccess('PIN reset successfully. You can log in now.');
+          setIsResetMode(false);
+          setResetOtpSent(false);
+          setPin('');
+          setConfirmPin('');
+          setResetOtp('');
+          setIsLogin(true);
+        }
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Could not reset your PIN. Please try again.');
+      } finally {
+        setIsSubmitting(false);
+      }
+      return;
+    }
 
     if (!isLogin && pin !== confirmPin) {
       setError('PINs do not match.');
       return;
     }
 
+    if (!isLogin) {
+      const numericAge = Number(age);
+      if (!Number.isInteger(numericAge) || numericAge < 6 || numericAge > 18) {
+        setError('Age must be between 6 and 18.');
+        return;
+      }
+    }
+
     setIsSubmitting(true);
     try {
       if (isLogin) {
-        await onLogin(name, pin);
+        await onLogin(name, pin, rememberMe);
       } else {
         await onRegister(name, email, age, pin);
       }
@@ -96,7 +142,7 @@ export function ChildAuthScreen({ onLogin, onRegister, onBack }: ChildAuthScreen
             </div>
 
             <div className="space-y-2 text-center">
-              <h2 className="text-[#2d3748]">{isLogin ? 'Login' : 'Sign Up'}</h2>
+              <h2 className="text-[#2d3748]">{isResetMode ? 'Reset PIN' : isLogin ? 'Login' : 'Sign Up'}</h2>
               <p className="text-[#4a5568]">
                 {isLogin
                   ? 'Enter your details to continue your journey.'
@@ -104,7 +150,7 @@ export function ChildAuthScreen({ onLogin, onRegister, onBack }: ChildAuthScreen
               </p>
             </div>
 
-            <div className="flex gap-2 bg-gray-100 p-1 rounded-full">
+            {!isResetMode && <div className="flex gap-2 bg-gray-100 p-1 rounded-full">
               <button
                 onClick={() => setIsLogin(true)}
                 className={`flex-1 py-2 rounded-full transition-all ${
@@ -125,7 +171,7 @@ export function ChildAuthScreen({ onLogin, onRegister, onBack }: ChildAuthScreen
               >
                 Sign Up
               </button>
-            </div>
+            </div>}
 
             <div className="space-y-4 pt-4">
               <Input
@@ -137,7 +183,30 @@ export function ChildAuthScreen({ onLogin, onRegister, onBack }: ChildAuthScreen
                 icon={<Heart className="w-5 h-5" fill="currentColor" />}
               />
 
-              {!isLogin && (
+              {isResetMode && (
+                <Input
+                  label="Parent or guardian email"
+                  placeholder="email@example.com"
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  variant="child"
+                  icon={<Mail className="w-5 h-5" />}
+                />
+              )}
+
+              {isResetMode && resetOtpSent && (
+                <Input
+                  label="Reset OTP"
+                  placeholder="6-digit code"
+                  value={resetOtp}
+                  onChange={(e) => setResetOtp(e.target.value)}
+                  variant="child"
+                  icon={<Star className="w-5 h-5" fill="currentColor" />}
+                />
+              )}
+
+              {!isLogin && !isResetMode && (
                 <>
                   <Input
                     label="Parent or guardian email"
@@ -153,6 +222,8 @@ export function ChildAuthScreen({ onLogin, onRegister, onBack }: ChildAuthScreen
                     label="How old are you?"
                     placeholder="Your age..."
                     type="number"
+                    min={6}
+                    max={18}
                     value={age}
                     onChange={(e) => setAge(e.target.value)}
                     variant="child"
@@ -161,8 +232,8 @@ export function ChildAuthScreen({ onLogin, onRegister, onBack }: ChildAuthScreen
                 </>
               )}
 
-              <Input
-                label={isLogin ? 'Enter your PIN' : 'Create a PIN (4 digits)'}
+              {(!isResetMode || resetOtpSent) && <Input
+                label={isResetMode ? 'Create a new PIN (4 digits)' : isLogin ? 'Enter your PIN' : 'Create a PIN (4 digits)'}
                 placeholder="****"
                 type="password"
                 maxLength={4}
@@ -170,9 +241,9 @@ export function ChildAuthScreen({ onLogin, onRegister, onBack }: ChildAuthScreen
                 onChange={(e) => setPin(e.target.value)}
                 variant="child"
                 icon={<Star className="w-5 h-5" fill="currentColor" />}
-              />
+              />}
 
-              {!isLogin && (
+              {(!isLogin || (isResetMode && resetOtpSent)) && (
                 <Input
                   label="Confirm your PIN"
                   placeholder="****"
@@ -185,6 +256,35 @@ export function ChildAuthScreen({ onLogin, onRegister, onBack }: ChildAuthScreen
                 />
               )}
 
+              {isLogin && !isResetMode && (
+                <div className="flex items-center justify-between gap-4 text-sm">
+                  <label className="flex items-center gap-2 text-[#475569] cursor-pointer">
+                    <input
+                      type="checkbox"
+                      className="rounded"
+                      checked={rememberMe}
+                      onChange={(event) => setRememberMe(event.target.checked)}
+                    />
+                    <span>Remember me</span>
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setError('');
+                      setSuccess('');
+                      setIsResetMode(true);
+                      setResetOtpSent(false);
+                      setPin('');
+                      setConfirmPin('');
+                      setResetOtp('');
+                    }}
+                    className="text-[#1a365d] hover:text-[#123057]"
+                  >
+                    Forgot PIN?
+                  </button>
+                </div>
+              )}
+
               <Button
                 variant="child-blue"
                 size="large"
@@ -193,13 +293,42 @@ export function ChildAuthScreen({ onLogin, onRegister, onBack }: ChildAuthScreen
                 className="w-full"
                 disabled={isSubmitting}
               >
-                {isSubmitting ? 'Please wait...' : isLogin ? 'Start My Journey' : 'Create My Account'}
+                {isSubmitting
+                  ? 'Please wait...'
+                  : isResetMode
+                    ? resetOtpSent
+                      ? 'Reset My PIN'
+                      : 'Send Reset OTP'
+                    : isLogin
+                      ? 'Start My Journey'
+                      : 'Create My Account'}
               </Button>
+
+              {isResetMode && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsResetMode(false);
+                    setResetOtpSent(false);
+                    setError('');
+                    setSuccess('');
+                  }}
+                  className="w-full text-center text-sm text-[#1a365d] hover:text-[#123057]"
+                >
+                  Back to login
+                </button>
+              )}
             </div>
 
             {error && (
               <div className="rounded-[1.5rem] border-2 border-red-200 bg-red-50 p-4 text-center text-sm text-red-700">
                 {error}
+              </div>
+            )}
+
+            {success && (
+              <div className="rounded-[1.5rem] border-2 border-emerald-200 bg-emerald-50 p-4 text-center text-sm text-emerald-700">
+                {success}
               </div>
             )}
 

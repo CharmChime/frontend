@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { Navigate, Route, Routes, useNavigate, useParams } from 'react-router';
+import { Navigate, Route, Routes, useLocation, useNavigate, useParams } from 'react-router';
 import { IntroLandingPage } from '../pages/IntroLandingPage';
 import { LandingPage } from '../pages/LandingPage';
 import { ChildAuthScreen } from '../pages/ChildAuthScreen';
@@ -18,6 +18,8 @@ import { ParentAnalyticsScreen } from '../pages/ParentAnalyticsScreen';
 import { ParentInsightsScreen } from '../pages/ParentInsightsScreen';
 import { ParentActivityScreen } from '../pages/ParentActivityScreen';
 import { ParentReportsScreen } from '../pages/ParentReportsScreen';
+import { ParentNotificationsScreen } from '../pages/ParentNotificationsScreen';
+import { ParentChildrenScreen } from '../pages/ParentChildrenScreen';
 import { OTP_CONTEXT_STORAGE_KEY, VerifyOtpScreen } from '../pages/VerifyOtpScreen';
 import { ApiRequestError, api, type Child, type OtpContext, type Parent } from '../services/api';
 
@@ -38,6 +40,8 @@ const parentRoutes: Record<string, string> = {
   insights: '/parent/insights',
   activity: '/parent/activity',
   reports: '/parent/reports',
+  children: '/parent/children',
+  notifications: '/parent/notifications',
   settings: '/parent/settings',
 };
 
@@ -73,14 +77,49 @@ const saveOtpContext = (context: OtpContext) => {
   sessionStorage.setItem(OTP_CONTEXT_STORAGE_KEY, JSON.stringify(context));
 };
 
+const getStoredItem = (key: string) => localStorage.getItem(key) || sessionStorage.getItem(key);
+
+const setAuthItem = (key: string, value: string, rememberMe: boolean) => {
+  const activeStorage = rememberMe ? localStorage : sessionStorage;
+  const inactiveStorage = rememberMe ? sessionStorage : localStorage;
+
+  activeStorage.setItem(key, value);
+  inactiveStorage.removeItem(key);
+};
+
+const removeAuthItems = (...keys: string[]) => {
+  keys.forEach((key) => {
+    localStorage.removeItem(key);
+    sessionStorage.removeItem(key);
+  });
+};
+
+const getStringPreference = (
+  preferences: Record<string, unknown> | undefined,
+  key: string,
+  fallback: string
+) => (typeof preferences?.[key] === 'string' ? String(preferences[key]) : fallback);
+
+const applyParentAppearance = (parentProfile: Parent | null, isParentRoute = false) => {
+  const appearance = parentProfile?.appearancePreferences;
+  const theme = getStringPreference(appearance, 'theme', 'light') === 'dark' ? 'dark' : 'light';
+  const colorTheme = getStringPreference(appearance, 'colorTheme', 'Teal');
+
+  document.documentElement.classList.remove('dark');
+  document.documentElement.dataset.parentTheme = isParentRoute ? theme : 'light';
+  document.documentElement.dataset.parentColorTheme = colorTheme;
+};
+
 function JournalDetailRoute({
   childName,
+  childAvatar,
   childId,
   onBack,
   onNavigate,
   onLogout,
 }: {
   childName: string;
+  childAvatar?: string;
   childId?: string;
   onBack: () => void;
   onNavigate: (page: string) => void;
@@ -92,6 +131,7 @@ function JournalDetailRoute({
     <JournalDetailScreen
       onBack={onBack}
       childName={childName}
+      childAvatar={childAvatar}
       childId={childId}
       onNavigate={onNavigate}
       onLogout={onLogout}
@@ -102,19 +142,22 @@ function JournalDetailRoute({
 
 export function ScreenNavigation() {
   const navigate = useNavigate();
+  const location = useLocation();
   const [child, setChild] = useState<Child | null>(() => {
-    const saved = localStorage.getItem('charmchime_child');
+    const saved = getStoredItem('charmchime_child');
     return saved ? JSON.parse(saved) : null;
   });
   const [parent, setParent] = useState<Parent | null>(() => {
-    const saved = localStorage.getItem('charmchime_parent');
-    return saved ? JSON.parse(saved) : null;
+    const saved = getStoredItem('charmchime_parent');
+    const savedParent = saved ? JSON.parse(saved) : null;
+    applyParentAppearance(savedParent, window.location.pathname.startsWith('/parent'));
+    return savedParent;
   });
   const [linkedChildren, setLinkedChildren] = useState<Child[]>([]);
   const [, setUserType] = useState<'child' | 'parent' | null>(null);
 
   useEffect(() => {
-    const token = localStorage.getItem('charmchime_child_token');
+    const token = getStoredItem('charmchime_child_token');
 
     if (!token) return;
 
@@ -122,7 +165,8 @@ export function ScreenNavigation() {
       .me()
       .then(({ child: freshChild }) => {
         setChild(freshChild);
-        localStorage.setItem('charmchime_child', JSON.stringify(freshChild));
+        const rememberMe = Boolean(localStorage.getItem('charmchime_child_token'));
+        setAuthItem('charmchime_child', JSON.stringify(freshChild), rememberMe);
       })
       .catch(() => {
         // Keep the cached profile so existing navigation stays usable.
@@ -130,7 +174,7 @@ export function ScreenNavigation() {
   }, []);
 
   useEffect(() => {
-    const token = localStorage.getItem('charmchime_parent_token');
+    const token = getStoredItem('charmchime_parent_token');
 
     if (!token) return;
 
@@ -138,7 +182,9 @@ export function ScreenNavigation() {
       .me()
       .then(({ parent: freshParent }) => {
         setParent(freshParent);
-        localStorage.setItem('charmchime_parent', JSON.stringify(freshParent));
+        const rememberMe = Boolean(localStorage.getItem('charmchime_parent_token'));
+        setAuthItem('charmchime_parent', JSON.stringify(freshParent), rememberMe);
+        applyParentAppearance(freshParent, location.pathname.startsWith('/parent'));
       })
       .catch(() => {
         // Keep the cached profile so existing navigation stays usable.
@@ -146,7 +192,7 @@ export function ScreenNavigation() {
   }, []);
 
   useEffect(() => {
-    const token = localStorage.getItem('charmchime_parent_token');
+    const token = getStoredItem('charmchime_parent_token');
 
     if (!token || !parent) {
       setLinkedChildren([]);
@@ -163,12 +209,12 @@ export function ScreenNavigation() {
     navigate(path);
   };
 
-  const handleChildLogin = async (name: string, pin: string) => {
+  const handleChildLogin = async (name: string, pin: string, rememberMe: boolean) => {
     try {
       const data = await api.auth.childLogin({ name, pin });
       setChild(data.child);
-      localStorage.setItem('charmchime_child', JSON.stringify(data.child));
-      localStorage.setItem('charmchime_child_token', data.token);
+      setAuthItem('charmchime_child', JSON.stringify(data.child), rememberMe);
+      setAuthItem('charmchime_child_token', data.token, rememberMe);
       setUserType('child');
       goTo('/child/home');
     } catch (error) {
@@ -194,12 +240,13 @@ export function ScreenNavigation() {
     navigate('/verify-otp', { state: context });
   };
 
-  const handleParentLogin = async (email: string, password: string) => {
+  const handleParentLogin = async (email: string, password: string, rememberMe: boolean) => {
     try {
       const data = await api.auth.parentLogin({ email, password });
       setParent(data.parent);
-      localStorage.setItem('charmchime_parent', JSON.stringify(data.parent));
-      localStorage.setItem('charmchime_parent_token', data.token);
+      setAuthItem('charmchime_parent', JSON.stringify(data.parent), rememberMe);
+      setAuthItem('charmchime_parent_token', data.token, rememberMe);
+      applyParentAppearance(data.parent, true);
       setUserType('parent');
       goTo('/parent/dashboard');
     } catch (error) {
@@ -230,6 +277,77 @@ export function ScreenNavigation() {
     navigate('/verify-otp', { state: context });
   };
 
+  const handleChildRequestPinReset = async (name: string, email: string) => {
+    await api.auth.forgotPassword({
+      userType: 'child',
+      name,
+      email,
+    });
+  };
+
+  const handleChildResetPin = async (name: string, email: string, otp: string, pin: string) => {
+    await api.auth.resetPassword({
+      userType: 'child',
+      name,
+      email,
+      otp,
+      pin,
+      confirmPin: pin,
+    });
+  };
+
+  const handleParentRequestPasswordReset = async (email: string) => {
+    await api.auth.forgotPassword({
+      userType: 'parent',
+      email,
+    });
+  };
+
+  const handleParentResetPassword = async (email: string, otp: string, password: string) => {
+    await api.auth.resetPassword({
+      userType: 'parent',
+      email,
+      otp,
+      password,
+      confirmPassword: password,
+    });
+  };
+
+  const handleParentThemeToggle = async () => {
+    if (!parent) return;
+
+    const currentTheme =
+      getStringPreference(parent.appearancePreferences, 'theme', 'light') === 'dark' ? 'dark' : 'light';
+    const nextTheme = currentTheme === 'dark' ? 'light' : 'dark';
+    const rememberMe = Boolean(localStorage.getItem('charmchime_parent_token'));
+    const nextParent: Parent = {
+      ...parent,
+      appearancePreferences: {
+        ...(parent.appearancePreferences || {}),
+        theme: nextTheme,
+      },
+    };
+
+    setParent(nextParent);
+    setAuthItem('charmchime_parent', JSON.stringify(nextParent), rememberMe);
+    applyParentAppearance(nextParent, true);
+
+    try {
+      const { parent: savedParent } = await api.parents.updateMe({
+        appearancePreferences: nextParent.appearancePreferences,
+      });
+
+      setParent(savedParent);
+      setAuthItem('charmchime_parent', JSON.stringify(savedParent), rememberMe);
+      applyParentAppearance(savedParent, true);
+    } catch (error) {
+      setParent(parent);
+      setAuthItem('charmchime_parent', JSON.stringify(parent), rememberMe);
+      applyParentAppearance(parent, true);
+      throw error;
+    }
+  };
+
   const handleSaveEntry = () => {
     goTo('/child/home');
   };
@@ -237,11 +355,11 @@ export function ScreenNavigation() {
   const handleLogout = async () => {
     const logoutRequests: Promise<unknown>[] = [];
 
-    if (localStorage.getItem('charmchime_child_token')) {
+    if (getStoredItem('charmchime_child_token')) {
       logoutRequests.push(api.auth.logout('child'));
     }
 
-    if (localStorage.getItem('charmchime_parent_token')) {
+    if (getStoredItem('charmchime_parent_token')) {
       logoutRequests.push(api.auth.logout('parent'));
     }
 
@@ -253,11 +371,14 @@ export function ScreenNavigation() {
     setChild(null);
     setParent(null);
     setLinkedChildren([]);
-    localStorage.removeItem('charmchime_child');
-    localStorage.removeItem('charmchime_parent');
-    localStorage.removeItem('charmchime_child_token');
-    localStorage.removeItem('charmchime_parent_token');
+    removeAuthItems(
+      'charmchime_child',
+      'charmchime_parent',
+      'charmchime_child_token',
+      'charmchime_parent_token'
+    );
     sessionStorage.removeItem(OTP_CONTEXT_STORAGE_KEY);
+    applyParentAppearance(null);
     goTo('/landing');
   };
 
@@ -266,10 +387,13 @@ export function ScreenNavigation() {
     setChild(null);
     setParent(null);
     setLinkedChildren([]);
-    localStorage.removeItem('charmchime_child');
-    localStorage.removeItem('charmchime_parent');
-    localStorage.removeItem('charmchime_child_token');
-    localStorage.removeItem('charmchime_parent_token');
+    removeAuthItems(
+      'charmchime_child',
+      'charmchime_parent',
+      'charmchime_child_token',
+      'charmchime_parent_token'
+    );
+    applyParentAppearance(null);
     goTo(verifiedUserType === 'parent' ? '/parent/auth' : '/child/auth');
   };
 
@@ -291,17 +415,32 @@ export function ScreenNavigation() {
 
   const handleChildProfileUpdated = useCallback((updatedChild: Child) => {
     setChild(updatedChild);
-    localStorage.setItem('charmchime_child', JSON.stringify(updatedChild));
+    const rememberMe = Boolean(localStorage.getItem('charmchime_child_token'));
+    setAuthItem('charmchime_child', JSON.stringify(updatedChild), rememberMe);
   }, []);
 
   const handleParentProfileUpdated = useCallback((updatedParent: Parent) => {
     setParent(updatedParent);
-    localStorage.setItem('charmchime_parent', JSON.stringify(updatedParent));
+    const rememberMe = Boolean(localStorage.getItem('charmchime_parent_token'));
+    setAuthItem('charmchime_parent', JSON.stringify(updatedParent), rememberMe);
+    applyParentAppearance(updatedParent, location.pathname.startsWith('/parent'));
+  }, [location.pathname]);
+
+  const handleParentChildrenChanged = useCallback((children: Child[]) => {
+    setLinkedChildren(children);
   }, []);
 
+  useEffect(() => {
+    applyParentAppearance(parent, location.pathname.startsWith('/parent'));
+  }, [location.pathname, parent]);
+
   const childDisplayName = child?.name || 'Friend';
+  const childAvatar = child?.avatar;
   const parentChildName =
     linkedChildren[0]?.nickname || linkedChildren[0]?.name || child?.name || 'your child';
+  const parentChildAvatar = linkedChildren[0]?.avatar || child?.avatar;
+  const parentTheme =
+    getStringPreference(parent?.appearancePreferences, 'theme', 'light') === 'dark' ? 'dark' : 'light';
 
   return (
     <Routes>
@@ -324,6 +463,8 @@ export function ScreenNavigation() {
           <ChildAuthScreen
             onLogin={handleChildLogin}
             onRegister={handleChildRegister}
+            onRequestPinReset={handleChildRequestPinReset}
+            onResetPin={handleChildResetPin}
             onBack={() => goTo('/landing')}
           />
         }
@@ -333,6 +474,7 @@ export function ScreenNavigation() {
         element={
           <ChildHomeScreenRedesigned
             childName={childDisplayName}
+            childAvatar={childAvatar}
             childId={child?.id}
             onNewEntry={() => goTo('/child/journal-entry')}
             onViewMemories={() => goTo('/child/memories')}
@@ -351,6 +493,7 @@ export function ScreenNavigation() {
             onBack={() => goTo('/child/home')}
             onSave={handleSaveEntry}
             childName={childDisplayName}
+            childAvatar={childAvatar}
             childId={child?.id}
             onNavigate={handleChildNavigation}
             onLogout={handleLogout}
@@ -363,6 +506,7 @@ export function ScreenNavigation() {
           <StoryModeScreen
             onBack={() => goTo('/child/home')}
             childName={childDisplayName}
+            childAvatar={childAvatar}
             childId={child?.id}
             onNavigate={handleChildNavigation}
             onLogout={handleLogout}
@@ -375,6 +519,7 @@ export function ScreenNavigation() {
           <MemoriesScreen
             onBack={() => goTo('/child/home')}
             childName={childDisplayName}
+            childAvatar={childAvatar}
             childId={child?.id}
             onNavigate={handleChildNavigation}
             onLogout={handleLogout}
@@ -388,6 +533,7 @@ export function ScreenNavigation() {
           <JournalDetailRoute
             onBack={() => goTo('/child/memories')}
             childName={childDisplayName}
+            childAvatar={childAvatar}
             childId={child?.id}
             onNavigate={handleChildNavigation}
             onLogout={handleLogout}
@@ -404,6 +550,7 @@ export function ScreenNavigation() {
           <CalendarScreen
             onBack={() => goTo('/child/home')}
             childName={childDisplayName}
+            childAvatar={childAvatar}
             childId={child?.id}
             onNavigate={handleChildNavigation}
             onLogout={handleLogout}
@@ -416,6 +563,7 @@ export function ScreenNavigation() {
           <AchievementsScreen
             onBack={() => goTo('/child/home')}
             childName={childDisplayName}
+            childAvatar={childAvatar}
             childId={child?.id}
             onNavigate={handleChildNavigation}
             onLogout={handleLogout}
@@ -428,6 +576,7 @@ export function ScreenNavigation() {
           <ChildSettingsScreen
             onBack={() => goTo('/child/home')}
             childName={childDisplayName}
+            childAvatar={childAvatar}
             onNavigate={handleChildNavigation}
             onLogout={handleLogout}
             onProfileUpdated={handleChildProfileUpdated}
@@ -440,6 +589,8 @@ export function ScreenNavigation() {
           <ParentAuthScreen
             onLogin={handleParentLogin}
             onRegister={handleParentRegister}
+            onRequestPasswordReset={handleParentRequestPasswordReset}
+            onResetPassword={handleParentResetPassword}
             onBack={() => goTo('/landing')}
           />
         }
@@ -458,7 +609,10 @@ export function ScreenNavigation() {
         element={
           <ParentDashboardRedesigned
             childName={parentChildName}
+            childAvatar={parentChildAvatar}
             parentId={parent?.id}
+            theme={parentTheme}
+            onThemeToggle={handleParentThemeToggle}
             onLogout={handleLogout}
             onSettings={() => goTo('/parent/settings')}
             onNavigate={handleParentNavigation}
@@ -470,6 +624,8 @@ export function ScreenNavigation() {
         element={
           <ParentSettingsScreen
             onBack={() => goTo('/parent/dashboard')}
+            theme={parentTheme}
+            onThemeToggle={handleParentThemeToggle}
             onProfileUpdated={handleParentProfileUpdated}
           />
         }
@@ -479,7 +635,10 @@ export function ScreenNavigation() {
         element={
           <ParentAnalyticsScreen
             childName={parentChildName}
+            childAvatar={parentChildAvatar}
             parentId={parent?.id}
+            theme={parentTheme}
+            onThemeToggle={handleParentThemeToggle}
             onNavigate={handleParentNavigation}
             onLogout={handleLogout}
           />
@@ -490,7 +649,10 @@ export function ScreenNavigation() {
         element={
           <ParentInsightsScreen
             childName={parentChildName}
+            childAvatar={parentChildAvatar}
             parentId={parent?.id}
+            theme={parentTheme}
+            onThemeToggle={handleParentThemeToggle}
             onNavigate={handleParentNavigation}
             onLogout={handleLogout}
           />
@@ -501,7 +663,10 @@ export function ScreenNavigation() {
         element={
           <ParentActivityScreen
             childName={parentChildName}
+            childAvatar={parentChildAvatar}
             parentId={parent?.id}
+            theme={parentTheme}
+            onThemeToggle={handleParentThemeToggle}
             onNavigate={handleParentNavigation}
             onLogout={handleLogout}
           />
@@ -512,9 +677,41 @@ export function ScreenNavigation() {
         element={
           <ParentReportsScreen
             childName={parentChildName}
+            childAvatar={parentChildAvatar}
             parentId={parent?.id}
+            theme={parentTheme}
+            onThemeToggle={handleParentThemeToggle}
             onNavigate={handleParentNavigation}
             onLogout={handleLogout}
+          />
+        }
+      />
+      <Route
+        path="/parent/notifications"
+        element={
+          <ParentNotificationsScreen
+            childName={parentChildName}
+            childAvatar={parentChildAvatar}
+            parentId={parent?.id}
+            theme={parentTheme}
+            onThemeToggle={handleParentThemeToggle}
+            onNavigate={handleParentNavigation}
+            onLogout={handleLogout}
+            onProfileUpdated={handleParentProfileUpdated}
+          />
+        }
+      />
+      <Route
+        path="/parent/children"
+        element={
+          <ParentChildrenScreen
+            childName={parentChildName}
+            childAvatar={parentChildAvatar}
+            theme={parentTheme}
+            onThemeToggle={handleParentThemeToggle}
+            onNavigate={handleParentNavigation}
+            onLogout={handleLogout}
+            onChildrenChanged={handleParentChildrenChanged}
           />
         }
       />
