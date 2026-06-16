@@ -26,8 +26,8 @@ export function Button({
     'child-peach': 'bg-[#ffbfa8] hover:bg-[#ff9f7f] text-[#7c2d12]',
     'child-lavender': 'bg-[#d1bff0] hover:bg-[#b8a0e0] text-[#5b21b6]',
     'child-slate': 'bg-[#e2e8f0] hover:bg-[#cbd5e1] text-[#334155]',
-    'parent-teal': 'bg-[#237e8f] hover:bg-[#1a5f6d] text-white',
-    'parent-slate': 'bg-[#334155] hover:bg-[#1e293b] text-white',
+    'parent-teal': 'bg-[var(--parent-teal)] hover:bg-[var(--parent-teal-dark)] text-white',
+    'parent-slate': 'bg-[var(--parent-slate)] hover:bg-[var(--parent-slate-light)] text-white',
   };
 
   const sizeClasses = {

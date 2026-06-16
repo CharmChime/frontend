@@ -1,5 +1,6 @@
 import React, { useEffect } from "react";
 import { BrowserRouter, useLocation } from "react-router";
+import { Toaster } from "sonner";
 import { ScreenNavigation } from "./components/ScreenNavigation";
 
 function ScrollToTop() {
@@ -20,6 +21,7 @@ export default function App() {
     <BrowserRouter>
       <ScrollToTop />
       <ScreenNavigation />
+      <Toaster richColors closeButton position="top-right" />
     </BrowserRouter>
   );
 }

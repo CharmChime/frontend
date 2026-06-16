@@ -5,10 +5,11 @@ import { Badge } from '../components/Badge';
 import { LogoutConfirmation } from '../components/LogoutConfirmation';
 import { ChildSidebar } from '../components/ChildSidebar';
 import { MobileMenuButton } from '../components/MobileMenuButton';
-import { Sparkles, PenLine, BookOpen, Settings, LogOut, Calendar, Trophy, Home, Wand2, Smile, Star, Heart } from 'lucide-react';
+import { Sparkles, PenLine, BookOpen, Settings, LogOut, Calendar, Trophy, Home, Wand2, Smile, Star, Heart, RefreshCw } from 'lucide-react';
 const logo = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="%232d3748" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M8 14s1.5-2 4-2 4 2 4 2"/></svg>';
 import { api, type Journal, type MoodAnalysis, type Story } from '../services/api';
 import { formatShortDate } from '../services/journalAdapters';
+import { toast } from 'sonner';
 
 interface ChildHomeScreenRedesignedProps {
   childName: string;
@@ -40,6 +41,8 @@ export function ChildHomeScreenRedesigned({
   const [journals, setJournals] = useState<Journal[]>([]);
   const [stories, setStories] = useState<Story[]>([]);
   const [moodAnalyses, setMoodAnalyses] = useState<MoodAnalysis[]>([]);
+  const [isLoadingDashboard, setIsLoadingDashboard] = useState(false);
+  const [dashboardError, setDashboardError] = useState('');
 
   const handleLogout = () => {
     setShowLogoutConfirm(false);
@@ -80,8 +83,14 @@ export function ChildHomeScreenRedesigned({
       setJournals([]);
       setStories([]);
       setMoodAnalyses([]);
+      setIsLoadingDashboard(false);
+      setDashboardError('');
       return;
     }
+
+    let isMounted = true;
+    setIsLoadingDashboard(true);
+    setDashboardError('');
 
     Promise.all([
       api.journals.list({ childId }),
@@ -89,6 +98,7 @@ export function ChildHomeScreenRedesigned({
       api.mood.byChild(childId),
     ])
       .then(([journalData, storyData, moodData]) => {
+        if (!isMounted) return;
         const sortedJournals = [...(journalData.journals || [])].sort(
           (first, second) => new Date(second.createdAt).getTime() - new Date(first.createdAt).getTime()
         );
@@ -98,12 +108,23 @@ export function ChildHomeScreenRedesigned({
         setStories(storyData.stories || []);
         setMoodAnalyses(moodData.moodAnalyses || moodData.moods || moodData.analyses || []);
       })
-      .catch(() => {
+      .catch((error) => {
+        if (!isMounted) return;
         setJournals([]);
         setRecentEntries([]);
         setStories([]);
         setMoodAnalyses([]);
+        const message = error instanceof Error ? error.message : 'Could not load your child dashboard.';
+        setDashboardError(message);
+        toast.error(message);
+      })
+      .finally(() => {
+        if (isMounted) setIsLoadingDashboard(false);
       });
+
+    return () => {
+      isMounted = false;
+    };
   }, [childId]);
 
   const toDayKey = (value?: string) => {
@@ -243,7 +264,17 @@ export function ChildHomeScreenRedesigned({
         />
       </div>
 
-      {/* Sidebar */}
+      <div className="hidden lg:block">
+        <ChildSidebar
+          childName={childName}
+          activeItem={activeTab}
+          onNavigate={handleNavigation}
+          onLogout={() => setShowLogoutConfirm(true)}
+          onLogoClick={() => handleNavigation('home')}
+          streakDays={currentStreak}
+        />
+      </div>
+      {false && (
       <aside className="hidden lg:flex w-64 bg-white border-r border-gray-200 shadow-lg flex-col">
         {/* Logo/Profile Section */}
         <div className="p-6 border-b border-gray-200">
@@ -311,6 +342,7 @@ export function ChildHomeScreenRedesigned({
           </button>
         </div>
       </aside>
+      )}
 
       {/* Main Content Area */}
       <main className="flex-1 overflow-auto">
@@ -336,6 +368,17 @@ export function ChildHomeScreenRedesigned({
 
         {/* Content */}
         <div className="p-4 sm:p-6 lg:p-8 space-y-6">
+          {(isLoadingDashboard || dashboardError) && (
+            <Card variant="child" className={dashboardError ? 'border-2 border-red-200 bg-red-50' : ''}>
+              <div className="flex items-center justify-center gap-3 text-sm">
+                {isLoadingDashboard && <RefreshCw className="w-4 h-4 animate-spin text-[#1a365d]" />}
+                <p className={dashboardError ? 'text-red-700' : 'text-[#1a365d]'}>
+                  {dashboardError || 'Loading your latest journals, stories, and moods...'}
+                </p>
+              </div>
+            </Card>
+          )}
+
           {/* Avatar Greeting Card */}
           <Card variant="child" className="bg-gradient-to-br from-white to-[var(--child-lavender)]/20">
             <div className="flex items-center gap-6">

@@ -9,6 +9,7 @@ import { LogoutConfirmation } from '../components/LogoutConfirmation';
 import { ArrowLeft, Wand2, Sparkles, BookOpen, Send, Volume2, Play, Pause, RotateCcw, Save, CheckCircle, RefreshCw, Star } from 'lucide-react';
 import { api, type Journal } from '../services/api';
 import { formatShortDate } from '../services/journalAdapters';
+import { toast } from 'sonner';
 
 interface StoryModeScreenProps {
   onBack: () => void;
@@ -98,6 +99,7 @@ export function StoryModeScreen({ onBack, childName = 'Friend', childId, onNavig
   const handleGenerateStory = async () => {
     if (!childId) {
       setError('Please log in as a child before generating a story.');
+      toast.error('Please log in as a child before generating a story.');
       return;
     }
 
@@ -131,8 +133,11 @@ export function StoryModeScreen({ onBack, childName = 'Friend', childId, onNavig
       });
 
       setGeneratedStory(data.story.content);
+      toast.success('Your story is ready.');
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Could not generate a story.');
+      const message = err instanceof Error ? err.message : 'Could not generate a story.';
+      setError(message);
+      toast.error(message);
     } finally {
       if (creationMode === 'journal' && selectedEntries.length > 0) {
         setSelectedEntries((current) => current.slice(0, 1));
@@ -182,14 +187,18 @@ export function StoryModeScreen({ onBack, childName = 'Friend', childId, onNavig
       storyAudioRef.current.currentTime = 0;
       await storyAudioRef.current.play();
       setStoryVoiceStatus('playing');
+      toast.info('Playing your story.');
     } catch (err) {
       setStoryVoiceStatus('unavailable');
-      setError(err instanceof Error ? err.message : 'Story voice is temporarily unavailable. You can still read the story below.');
+      const message = err instanceof Error ? err.message : 'Story voice is temporarily unavailable. You can still read the story below.';
+      setError(message);
+      toast.error(message);
     }
   };
 
   const handleSaveStory = () => {
     setActionMessage('Story saved by the backend when it was generated.');
+    toast.success('Story is saved in your memories.');
   };
 
   const handleContinueStory = () => {
@@ -200,6 +209,7 @@ export function StoryModeScreen({ onBack, childName = 'Friend', childId, onNavig
     storyAudioRef.current = null;
     setStoryVoiceStatus('idle');
     setActionMessage('');
+    toast.info('Ready to continue your story.');
   };
 
   const handleNewStory = () => {
@@ -211,6 +221,7 @@ export function StoryModeScreen({ onBack, childName = 'Friend', childId, onNavig
     }
     setStoryVoiceStatus('idle');
     setGeneratedStory('');
+    toast.info('Started a new story.');
   };
 
   return (

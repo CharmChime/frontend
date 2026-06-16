@@ -22,6 +22,7 @@ import {
   readingTime,
   wordCount,
 } from '../services/journalAdapters';
+import { toast } from 'sonner';
 
 interface MemoriesScreenProps {
   onBack: () => void;
@@ -77,7 +78,11 @@ export function MemoriesScreen({ onBack, childName = 'Friend', childId, onNaviga
         if (isMounted) setJournals(data.journals);
       })
       .catch((err) => {
-        if (isMounted) setError(err instanceof Error ? err.message : 'Could not load memories.');
+        if (isMounted) {
+          const message = err instanceof Error ? err.message : 'Could not load memories.';
+          setError(message);
+          toast.error(message);
+        }
       })
       .finally(() => {
         if (isMounted) setIsLoading(false);
@@ -143,6 +148,34 @@ export function MemoriesScreen({ onBack, childName = 'Friend', childId, onNaviga
   };
 
   const filteredMemories = getFilteredMemories();
+  const memoryStats = useMemo(() => {
+    const days = new Set(
+      journals
+        .map((journal) => new Date(journal.createdAt))
+        .filter((date) => !Number.isNaN(date.getTime()))
+        .map((date) => date.toISOString().slice(0, 10))
+    );
+    let streak = 0;
+    const cursor = new Date();
+
+    while (days.has(cursor.toISOString().slice(0, 10))) {
+      streak += 1;
+      cursor.setDate(cursor.getDate() - 1);
+    }
+
+    const moodCounts = allMemories.reduce<Record<string, number>>((counts, memory) => {
+      counts[memory.mood] = (counts[memory.mood] || 0) + 1;
+      return counts;
+    }, {});
+    const topMood = Object.entries(moodCounts).sort((first, second) => second[1] - first[1])[0]?.[0] || 'None';
+    const voiceEntries = journals.filter((journal) => journal.inputType === 'voice' || journal.source === 'speech-to-text').length;
+
+    return {
+      streak,
+      topMood,
+      voiceEntries,
+    };
+  }, [allMemories, journals]);
 
   // Calculate filter counts
   const getFilterCount = (filterId: string) => {
@@ -173,9 +206,14 @@ export function MemoriesScreen({ onBack, childName = 'Friend', childId, onNaviga
   };
 
   const handleDeleteMemory = async (memoryId: string) => {
-    await api.journals.remove(memoryId);
-    setJournals((current) => current.filter((journal) => journal.id !== memoryId));
-    setSelectedMemory(null);
+    try {
+      await api.journals.remove(memoryId);
+      setJournals((current) => current.filter((journal) => journal.id !== memoryId));
+      setSelectedMemory(null);
+      toast.success('Memory deleted.');
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Could not delete memory.');
+    }
   };
 
   const handleReadMemory = async (memory: Memory) => {
@@ -212,18 +250,23 @@ export function MemoriesScreen({ onBack, childName = 'Friend', childId, onNaviga
 
       await audio.play();
       setMemoryVoiceStatus('playing');
+      toast.info('Playing your memory.');
     } catch (err) {
       setMemoryVoiceStatus('unavailable');
-      setError(err instanceof Error ? err.message : 'Voice is temporarily unavailable.');
+      const message = err instanceof Error ? err.message : 'Voice is temporarily unavailable.';
+      setError(message);
+      toast.error(message);
     }
   };
 
   const toggleFavorite = (memoryId: string) => {
+    const isFavorite = favoriteIds.includes(memoryId);
     setFavoriteIds((current) =>
       current.includes(memoryId)
         ? current.filter((id) => id !== memoryId)
         : [...current, memoryId]
     );
+    toast.success(isFavorite ? 'Removed from favorites.' : 'Added to favorites.');
   };
 
   // If a memory is selected, show the detail view
@@ -307,7 +350,7 @@ export function MemoriesScreen({ onBack, childName = 'Friend', childId, onNaviga
             <Card variant="child" padding="small">
               <div className="text-center space-y-2">
                 <div className="text-2xl sm:text-3xl">🔥</div>
-                <div className="text-xl sm:text-2xl text-[#2d3748]">7</div>
+                <div className="text-xl sm:text-2xl text-[#2d3748]">{memoryStats.streak}</div>
                 <p className="text-xs sm:text-sm text-[#64748b]">Day Streak</p>
               </div>
             </Card>
@@ -315,16 +358,16 @@ export function MemoriesScreen({ onBack, childName = 'Friend', childId, onNaviga
             <Card variant="child" padding="small">
               <div className="text-center space-y-2">
                 <div className="text-2xl sm:text-3xl">😊</div>
-                <div className="text-xl sm:text-2xl text-[#2d3748]">Most</div>
-                <p className="text-xs sm:text-sm text-[#64748b]">Happy Days</p>
+                <div className="text-xl sm:text-2xl text-[#2d3748] capitalize">{memoryStats.topMood}</div>
+                <p className="text-xs sm:text-sm text-[#64748b]">Top Mood</p>
               </div>
             </Card>
 
             <Card variant="child" padding="small">
               <div className="text-center space-y-2">
                 <div className="text-2xl sm:text-3xl">✨</div>
-                <div className="text-xl sm:text-2xl text-[#2d3748]">{getFilterCount('creative')}</div>
-                <p className="text-xs sm:text-sm text-[#64748b]">Stories</p>
+                <div className="text-xl sm:text-2xl text-[#2d3748]">{memoryStats.voiceEntries}</div>
+                <p className="text-xs sm:text-sm text-[#64748b]">Voice Entries</p>
               </div>
             </Card>
           </div>

@@ -1,5 +1,4 @@
 import React from 'react';
-import { Badge } from './Badge';
 import { Shield, Home, Users, BarChart, FileText, Bell, Settings, LogOut, Activity, TrendingUp, X } from 'lucide-react';
 import logo from '../assets/35160e99e546074153c34366a831aa0e30d421e6.png';
 
@@ -127,7 +126,6 @@ export function ParentSidebar({ childName, activeItem = 'overview', onNavigate, 
           >
             <Bell className="w-5 h-5" />
             <span>Notifications</span>
-            <Badge variant="parent-teal" className="ml-auto">3</Badge>
           </button>
           <button 
             onClick={() => handleNavigate('settings')}
