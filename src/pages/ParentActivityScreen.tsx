@@ -4,12 +4,17 @@ import { Card } from '../components/Card';
 import { Badge } from '../components/Badge';
 import { Activity, Clock, PenLine, Sparkles, Filter, Smile } from 'lucide-react';
 import { LogoutConfirmation } from '../components/LogoutConfirmation';
-import { api } from '../services/api';
+import { api, type Child } from '../services/api';
 import { ParentThemeToggle } from '../components/ParentThemeToggle';
+import { ParentPageLoader } from '../components/PageLoaders';
 
 interface ParentActivityScreenProps {
   childName: string;
   childAvatar?: string;
+  parentName?: string;
+  children?: Child[];
+  selectedChildId?: string;
+  onSelectChild?: (childId: string) => void;
   parentId?: string;
   theme?: 'light' | 'dark';
   onThemeToggle?: () => Promise<void>;
@@ -17,22 +22,51 @@ interface ParentActivityScreenProps {
   onLogout: () => void;
 }
 
-export function ParentActivityScreen({ childName, childAvatar, parentId, theme = 'light', onThemeToggle, onNavigate, onLogout }: ParentActivityScreenProps) {
+export function ParentActivityScreen({
+  childName,
+  childAvatar,
+  parentName,
+  children,
+  selectedChildId,
+  onSelectChild,
+  parentId,
+  theme = 'light',
+  onThemeToggle,
+  onNavigate,
+  onLogout,
+}: ParentActivityScreenProps) {
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [filterType, setFilterType] = useState<'all' | 'journal' | 'story' | 'mood'>('all');
+  const [activityLimit, setActivityLimit] = useState(10);
   const [activityData, setActivityData] = useState<any | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
     if (!parentId) return;
-    api.dashboard.activity(parentId).then(setActivityData).catch(() => setActivityData(null));
-  }, [parentId]);
+    setIsLoading(true);
+    setActivityData(null);
+    api.dashboard.activity(parentId, {
+      childId: selectedChildId,
+      type: filterType === 'all' ? undefined : filterType,
+      limit: activityLimit,
+    })
+      .then(setActivityData)
+      .catch(() => setActivityData(null))
+      .finally(() => setIsLoading(false));
+  }, [parentId, selectedChildId, filterType, activityLimit]);
 
   const handleLogout = () => {
     setShowLogoutConfirm(false);
     onLogout();
   };
 
-  const activities = activityData?.activities?.length ? activityData.activities.map((activity: any) => ({
+  const handleFilterChange = (type: 'all' | 'journal' | 'story' | 'mood') => {
+    setFilterType(type);
+    setActivityLimit(10);
+  };
+
+  const activityItems = Array.isArray(activityData?.activities) ? activityData.activities : [];
+  const activities = activityItems.length ? activityItems.map((activity: any) => ({
     ...activity,
     details: activity.details || activity.description,
     time: activity.time || (activity.createdAt ? new Date(activity.createdAt).toLocaleString() : 'Recently'),
@@ -47,6 +81,7 @@ export function ParentActivityScreen({ childName, childAvatar, parentId, theme =
   const filteredActivities = filterType === 'all' 
     ? activities 
     : activities.filter(a => a.type === filterType);
+  const canLoadMore = activities.length >= activityLimit && activityLimit < 50;
 
   const getActivityIcon = (type: string) => {
     switch(type) {
@@ -81,10 +116,14 @@ export function ParentActivityScreen({ childName, childAvatar, parentId, theme =
       <ParentSidebar 
         childName={childName}
         childAvatar={childAvatar}
+        parentName={parentName}
+        children={children}
+        selectedChildId={selectedChildId}
+        onSelectChild={onSelectChild}
         activeItem="activity"
         onNavigate={onNavigate}
         onLogout={() => setShowLogoutConfirm(true)}
-        onLogoClick={onLogout}
+        onLogoClick={() => onNavigate('overview')}
       />
 
       <main className="flex-1 overflow-auto">
@@ -112,7 +151,7 @@ export function ParentActivityScreen({ childName, childAvatar, parentId, theme =
               <div className="flex flex-wrap items-center gap-2 sm:gap-3">
                 <Filter className="w-5 h-5 text-[#64748b]" />
                 <button
-                  onClick={() => setFilterType('all')}
+                  onClick={() => handleFilterChange('all')}
                   className={`px-3 sm:px-4 py-2 rounded-lg text-sm transition-colors ${
                     filterType === 'all'
                       ? 'bg-[var(--parent-teal)] text-white'
@@ -122,7 +161,7 @@ export function ParentActivityScreen({ childName, childAvatar, parentId, theme =
                   All
                 </button>
                 <button
-                  onClick={() => setFilterType('journal')}
+                  onClick={() => handleFilterChange('journal')}
                   className={`px-3 sm:px-4 py-2 rounded-lg text-sm transition-colors ${
                     filterType === 'journal'
                       ? 'bg-[var(--parent-teal)] text-white'
@@ -132,7 +171,7 @@ export function ParentActivityScreen({ childName, childAvatar, parentId, theme =
                   Journal
                 </button>
                 <button
-                  onClick={() => setFilterType('story')}
+                  onClick={() => handleFilterChange('story')}
                   className={`px-3 sm:px-4 py-2 rounded-lg text-sm transition-colors ${
                     filterType === 'story'
                       ? 'bg-[var(--parent-teal)] text-white'
@@ -142,7 +181,7 @@ export function ParentActivityScreen({ childName, childAvatar, parentId, theme =
                   Stories
                 </button>
                 <button
-                  onClick={() => setFilterType('mood')}
+                  onClick={() => handleFilterChange('mood')}
                   className={`px-3 sm:px-4 py-2 rounded-lg text-sm transition-colors ${
                     filterType === 'mood'
                       ? 'bg-[var(--parent-teal)] text-white'
@@ -158,6 +197,13 @@ export function ParentActivityScreen({ childName, childAvatar, parentId, theme =
 
         {/* Content */}
         <div className="p-4 sm:p-6 lg:p-8">
+          {isLoading ? (
+            <ParentPageLoader
+              title="Loading activity log"
+              message={`Collecting recent journal, story, and mood activity for ${childName}.`}
+            />
+          ) : (
+          <>
           {/* Summary Stats */}
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-6">
             <Card variant="parent" padding="medium">
@@ -234,7 +280,21 @@ export function ParentActivityScreen({ childName, childAvatar, parentId, theme =
                 </div>
               )}
             </div>
+            {canLoadMore && (
+              <div className="mt-5 flex justify-center">
+                <button
+                  type="button"
+                  onClick={() => setActivityLimit((limit) => Math.min(limit + 10, 50))}
+                  disabled={isLoading}
+                  className="px-5 py-2.5 rounded-lg bg-[var(--parent-teal)] text-white text-sm font-medium shadow-sm hover:opacity-90 disabled:opacity-60 disabled:cursor-not-allowed transition"
+                >
+                  Load more activities
+                </button>
+              </div>
+            )}
           </Card>
+          </>
+          )}
         </div>
       </main>
 

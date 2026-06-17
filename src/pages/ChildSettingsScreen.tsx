@@ -4,6 +4,7 @@ import { Button } from '../components/Button';
 import { ChildSidebar } from '../components/ChildSidebar';
 import { MobileMenuButton } from '../components/MobileMenuButton';
 import { LogoutConfirmation } from '../components/LogoutConfirmation';
+import { ChildPageLoader } from '../components/PageLoaders';
 import { ArrowLeft, User, Bell, Shield } from 'lucide-react';
 import { api, type Child } from '../services/api';
 import { toast } from 'sonner';
@@ -14,6 +15,7 @@ interface ChildSettingsScreenProps {
   onBack: () => void;
   childName: string;
   childAvatar?: string;
+  childId?: string;
   onNavigate?: (page: string) => void;
   onLogout?: () => void;
   onProfileUpdated?: (child: Child) => void;
@@ -31,6 +33,7 @@ export function ChildSettingsScreen({
   onBack,
   childName,
   childAvatar,
+  childId,
   onNavigate,
   onLogout,
   onProfileUpdated,
@@ -155,6 +158,7 @@ export function ChildSettingsScreen({
         <ChildSidebar
           childName={name || childName}
           childAvatar={avatar}
+          childId={childId}
           activeItem="settings"
           onNavigate={handleSidebarNavigation}
           onLogout={() => setShowLogoutConfirm(true)}
@@ -211,9 +215,11 @@ export function ChildSettingsScreen({
                 </div>
 
                 {isLoadingProfile && (
-                  <div className="rounded-2xl bg-white px-4 py-3 text-sm text-[#64748b]">
-                    Loading your profile...
-                  </div>
+                  <ChildPageLoader
+                    childName={childName}
+                    childAvatar={childAvatar}
+                    message="Loading your avatar, profile, and safe settings."
+                  />
                 )}
 
                 <div className="grid gap-4 sm:grid-cols-2">

@@ -30,6 +30,7 @@ const childRoutes: Record<string, string> = {
   memories: '/child/memories',
   calendar: '/child/calendar',
   achievements: '/child/achievements',
+  notifications: '/child/settings',
   settings: '/child/settings',
 };
 
@@ -154,6 +155,7 @@ export function ScreenNavigation() {
     return savedParent;
   });
   const [linkedChildren, setLinkedChildren] = useState<Child[]>([]);
+  const [selectedParentChildId, setSelectedParentChildId] = useState('');
   const [, setUserType] = useState<'child' | 'parent' | null>(null);
 
   useEffect(() => {
@@ -201,7 +203,14 @@ export function ScreenNavigation() {
 
     api.parents
       .children()
-      .then(({ children }) => setLinkedChildren(children))
+      .then(({ children }) => {
+        setLinkedChildren(children);
+        const lastSelectedChildId = localStorage.getItem('lastSelectedChildId');
+        const childIdToSet = 
+          (lastSelectedChildId && children.some((item) => item.id === lastSelectedChildId) ? lastSelectedChildId : undefined) ||
+          (children.length > 0 ? children[0]?.id : '');
+        setSelectedParentChildId(childIdToSet);
+      })
       .catch(() => setLinkedChildren([]));
   }, [parent]);
 
@@ -371,6 +380,7 @@ export function ScreenNavigation() {
     setChild(null);
     setParent(null);
     setLinkedChildren([]);
+    setSelectedParentChildId('');
     removeAuthItems(
       'charmchime_child',
       'charmchime_parent',
@@ -387,6 +397,7 @@ export function ScreenNavigation() {
     setChild(null);
     setParent(null);
     setLinkedChildren([]);
+    setSelectedParentChildId('');
     removeAuthItems(
       'charmchime_child',
       'charmchime_parent',
@@ -428,6 +439,9 @@ export function ScreenNavigation() {
 
   const handleParentChildrenChanged = useCallback((children: Child[]) => {
     setLinkedChildren(children);
+    setSelectedParentChildId((currentId) =>
+      children.some((item) => item.id === currentId) ? currentId : children[0]?.id || ''
+    );
   }, []);
 
   useEffect(() => {
@@ -436,9 +450,12 @@ export function ScreenNavigation() {
 
   const childDisplayName = child?.name || 'Friend';
   const childAvatar = child?.avatar;
+  const selectedParentChild =
+    linkedChildren.find((item) => item.id === selectedParentChildId) || linkedChildren[0];
   const parentChildName =
-    linkedChildren[0]?.nickname || linkedChildren[0]?.name || child?.name || 'your child';
-  const parentChildAvatar = linkedChildren[0]?.avatar || child?.avatar;
+    selectedParentChild?.nickname || selectedParentChild?.name || child?.name || 'your child';
+  const parentChildAvatar = selectedParentChild?.avatar || child?.avatar;
+  const parentDisplayName = parent?.fullName || parent?.name || 'Parent';
   const parentTheme =
     getStringPreference(parent?.appearancePreferences, 'theme', 'light') === 'dark' ? 'dark' : 'light';
 
@@ -577,6 +594,7 @@ export function ScreenNavigation() {
             onBack={() => goTo('/child/home')}
             childName={childDisplayName}
             childAvatar={childAvatar}
+            childId={child?.id}
             onNavigate={handleChildNavigation}
             onLogout={handleLogout}
             onProfileUpdated={handleChildProfileUpdated}
@@ -610,6 +628,10 @@ export function ScreenNavigation() {
           <ParentDashboardRedesigned
             childName={parentChildName}
             childAvatar={parentChildAvatar}
+            parentName={parentDisplayName}
+            children={linkedChildren}
+            selectedChildId={selectedParentChild?.id}
+            onSelectChild={setSelectedParentChildId}
             parentId={parent?.id}
             theme={parentTheme}
             onThemeToggle={handleParentThemeToggle}
@@ -624,8 +646,16 @@ export function ScreenNavigation() {
         element={
           <ParentSettingsScreen
             onBack={() => goTo('/parent/dashboard')}
+            childName={parentChildName}
+            childAvatar={parentChildAvatar}
+            parentName={parentDisplayName}
+            children={linkedChildren}
+            selectedChildId={selectedParentChild?.id}
+            onSelectChild={setSelectedParentChildId}
             theme={parentTheme}
             onThemeToggle={handleParentThemeToggle}
+            onNavigate={handleParentNavigation}
+            onLogout={handleLogout}
             onProfileUpdated={handleParentProfileUpdated}
           />
         }
@@ -636,6 +666,10 @@ export function ScreenNavigation() {
           <ParentAnalyticsScreen
             childName={parentChildName}
             childAvatar={parentChildAvatar}
+            parentName={parentDisplayName}
+            children={linkedChildren}
+            selectedChildId={selectedParentChild?.id}
+            onSelectChild={setSelectedParentChildId}
             parentId={parent?.id}
             theme={parentTheme}
             onThemeToggle={handleParentThemeToggle}
@@ -650,6 +684,10 @@ export function ScreenNavigation() {
           <ParentInsightsScreen
             childName={parentChildName}
             childAvatar={parentChildAvatar}
+            parentName={parentDisplayName}
+            children={linkedChildren}
+            selectedChildId={selectedParentChild?.id}
+            onSelectChild={setSelectedParentChildId}
             parentId={parent?.id}
             theme={parentTheme}
             onThemeToggle={handleParentThemeToggle}
@@ -664,6 +702,10 @@ export function ScreenNavigation() {
           <ParentActivityScreen
             childName={parentChildName}
             childAvatar={parentChildAvatar}
+            parentName={parentDisplayName}
+            children={linkedChildren}
+            selectedChildId={selectedParentChild?.id}
+            onSelectChild={setSelectedParentChildId}
             parentId={parent?.id}
             theme={parentTheme}
             onThemeToggle={handleParentThemeToggle}
@@ -678,6 +720,10 @@ export function ScreenNavigation() {
           <ParentReportsScreen
             childName={parentChildName}
             childAvatar={parentChildAvatar}
+            parentName={parentDisplayName}
+            children={linkedChildren}
+            selectedChildId={selectedParentChild?.id}
+            onSelectChild={setSelectedParentChildId}
             parentId={parent?.id}
             theme={parentTheme}
             onThemeToggle={handleParentThemeToggle}
@@ -692,6 +738,10 @@ export function ScreenNavigation() {
           <ParentNotificationsScreen
             childName={parentChildName}
             childAvatar={parentChildAvatar}
+            parentName={parentDisplayName}
+            children={linkedChildren}
+            selectedChildId={selectedParentChild?.id}
+            onSelectChild={setSelectedParentChildId}
             parentId={parent?.id}
             theme={parentTheme}
             onThemeToggle={handleParentThemeToggle}
@@ -707,6 +757,10 @@ export function ScreenNavigation() {
           <ParentChildrenScreen
             childName={parentChildName}
             childAvatar={parentChildAvatar}
+            parentName={parentDisplayName}
+            children={linkedChildren}
+            selectedChildId={selectedParentChild?.id}
+            onSelectChild={setSelectedParentChildId}
             theme={parentTheme}
             onThemeToggle={handleParentThemeToggle}
             onNavigate={handleParentNavigation}

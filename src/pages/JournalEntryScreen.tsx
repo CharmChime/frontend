@@ -347,6 +347,7 @@ export function JournalEntryScreen({ onBack, onSave, childName = 'Friend', child
         <ChildSidebar 
           childName={childName}
           childAvatar={childAvatar}
+          childId={childId}
           activeItem="entry"
           onNavigate={handleSidebarNavigation}
           onLogout={() => setShowLogoutConfirm(true)}

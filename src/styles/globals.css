@@ -25,7 +25,7 @@
   
   /* Typography */
   --font-family: 'Poppins', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-  --font-size: 16px;
+  --font-size: 14px;
   --line-height-relaxed: 1.8;
   --line-height-loose: 2;
   
@@ -412,4 +412,22 @@ html {
 .journal-rich-editor u,
 .journal-rich-content u {
   text-decoration: underline;
+}
+
+body:has(.top-app-actions[data-variant='parent']) header.sticky > div {
+  padding-right: 12rem;
+}
+
+body:has(.top-app-actions[data-variant='child']) header.sticky > div {
+  padding-right: 8.5rem;
+}
+
+@media (max-width: 640px) {
+  body:has(.top-app-actions[data-variant='parent']) header.sticky > div {
+    padding-right: 11rem;
+  }
+
+  body:has(.top-app-actions[data-variant='child']) header.sticky > div {
+    padding-right: 7.5rem;
+  }
 }

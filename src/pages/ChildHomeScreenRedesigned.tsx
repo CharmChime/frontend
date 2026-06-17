@@ -10,6 +10,7 @@ import { Sparkles, PenLine, BookOpen, Calendar, Trophy, Home, Wand2, Smile, Star
 import { api, type Journal, type MoodAnalysis, type Story } from '../services/api';
 import { formatShortDate } from '../services/journalAdapters';
 import { toast } from 'sonner';
+import { ChildPageLoader } from '../components/PageLoaders';
 
 interface ChildHomeScreenRedesignedProps {
   childName: string;
@@ -73,6 +74,7 @@ export function ChildHomeScreenRedesigned({
       case 'achievements':
         onAchievements?.();
         break;
+      case 'notifications':
       case 'settings':
         onSettings?.();
         break;
@@ -142,6 +144,20 @@ export function ChildHomeScreenRedesigned({
     () => Array.from(new Set(journals.map((journal) => toDayKey(journal.createdAt)).filter(Boolean))).sort(),
     [journals]
   );
+
+  const weeklyStreakDays = useMemo(() => {
+    const today = new Date();
+    const startOfWeek = new Date(today);
+    startOfWeek.setHours(0, 0, 0, 0);
+    startOfWeek.setDate(today.getDate() - today.getDay());
+    const journalDays = new Set(journalDayKeys);
+
+    return Array.from({ length: 7 }, (_, index) => {
+      const day = new Date(startOfWeek);
+      day.setDate(startOfWeek.getDate() + index);
+      return journalDays.has(day.toISOString().slice(0, 10));
+    });
+  }, [journalDayKeys]);
 
   const currentStreak = useMemo(() => {
     if (!journalDayKeys.length) return 0;
@@ -257,6 +273,7 @@ export function ChildHomeScreenRedesigned({
         <ChildSidebar
           childName={childName}
           childAvatar={childAvatar}
+          childId={childId}
           activeItem={activeTab}
           onNavigate={handleNavigation}
           onLogout={() => setShowLogoutConfirm(true)}
@@ -264,6 +281,7 @@ export function ChildHomeScreenRedesigned({
           onClose={() => setIsSidebarOpen(false)}
           onLogoClick={() => handleNavigation('home')}
           streakDays={currentStreak}
+          weeklyStreakDays={weeklyStreakDays}
         />
       </div>
 
@@ -271,11 +289,13 @@ export function ChildHomeScreenRedesigned({
         <ChildSidebar
           childName={childName}
           childAvatar={childAvatar}
+          childId={childId}
           activeItem={activeTab}
           onNavigate={handleNavigation}
           onLogout={() => setShowLogoutConfirm(true)}
           onLogoClick={() => handleNavigation('home')}
           streakDays={currentStreak}
+          weeklyStreakDays={weeklyStreakDays}
         />
       </div>
       {/* Main Content Area */}
@@ -302,7 +322,13 @@ export function ChildHomeScreenRedesigned({
 
         {/* Content */}
         <div className="p-4 sm:p-6 lg:p-8 space-y-6">
-          {(isLoadingDashboard || dashboardError) && (
+          {isLoadingDashboard && !dashboardError && !journals.length && !stories.length ? (
+            <ChildPageLoader
+              childName={childName}
+              childAvatar={childAvatar}
+              message="Collecting your journals, stories, moods, and little wins."
+            />
+          ) : (isLoadingDashboard || dashboardError) && (
             <Card variant="child" className={dashboardError ? 'border-2 border-red-200 bg-red-50' : ''}>
               <div className="flex items-center justify-center gap-3 text-sm">
                 {isLoadingDashboard && <RefreshCw className="w-4 h-4 animate-spin text-[#1a365d]" />}

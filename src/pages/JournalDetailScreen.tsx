@@ -6,6 +6,7 @@ import { Badge } from '../components/Badge';
 import { ChildSidebar } from '../components/ChildSidebar';
 import { MobileMenuButton } from '../components/MobileMenuButton';
 import { LogoutConfirmation } from '../components/LogoutConfirmation';
+import { ChildPageLoader } from '../components/PageLoaders';
 import { ArrowLeft, Volume2, VolumeX, Star, Share2, Trash2, Edit, Calendar, Heart, Sparkles, Wand2, RefreshCw, RotateCcw } from 'lucide-react';
 import { api } from '../services/api';
 import {
@@ -322,10 +323,19 @@ export function JournalDetailScreen({
   if (isLoading || error || !entry) {
     return (
       <div className="min-h-screen bg-[var(--child-bg)] flex items-center justify-center p-6">
+        {isLoading ? (
+          <div className="w-full max-w-2xl">
+            <ChildPageLoader
+              childName={childName}
+              childAvatar={childAvatar}
+              message="Opening your memory and getting the story details ready."
+            />
+          </div>
+        ) : (
         <Card variant="child" className="max-w-lg text-center">
           <div className="space-y-4">
             <h2 className="text-[#2d3748]">
-              {isLoading ? 'Loading your memory...' : error ? 'Memory unavailable' : 'Memory not found'}
+              {error ? 'Memory unavailable' : 'Memory not found'}
             </h2>
             <p className="text-[#64748b]">
               {error || 'This journal entry could not be found.'}
@@ -335,6 +345,7 @@ export function JournalDetailScreen({
             </Button>
           </div>
         </Card>
+        )}
       </div>
     );
   }
@@ -351,6 +362,7 @@ export function JournalDetailScreen({
         <ChildSidebar 
           childName={childName}
           childAvatar={childAvatar}
+          childId={childId}
           activeItem="memories"
           onNavigate={handleSidebarNavigation}
           onLogout={() => setShowLogoutConfirm(true)}

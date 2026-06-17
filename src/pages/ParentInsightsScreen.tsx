@@ -4,12 +4,17 @@ import { Card } from '../components/Card';
 import { Badge } from '../components/Badge';
 import { Brain, Sparkles, TrendingUp, AlertCircle, CheckCircle, Lightbulb, Heart, MessageCircle } from 'lucide-react';
 import { LogoutConfirmation } from '../components/LogoutConfirmation';
-import { api } from '../services/api';
+import { api, type Child } from '../services/api';
 import { ParentThemeToggle } from '../components/ParentThemeToggle';
+import { ParentPageLoader } from '../components/PageLoaders';
 
 interface ParentInsightsScreenProps {
   childName: string;
   childAvatar?: string;
+  parentName?: string;
+  children?: Child[];
+  selectedChildId?: string;
+  onSelectChild?: (childId: string) => void;
   parentId?: string;
   theme?: 'light' | 'dark';
   onThemeToggle?: () => Promise<void>;
@@ -17,14 +22,39 @@ interface ParentInsightsScreenProps {
   onLogout: () => void;
 }
 
-export function ParentInsightsScreen({ childName, childAvatar, parentId, theme = 'light', onThemeToggle, onNavigate, onLogout }: ParentInsightsScreenProps) {
+export function ParentInsightsScreen({
+  childName,
+  childAvatar,
+  parentName,
+  children,
+  selectedChildId,
+  onSelectChild,
+  parentId,
+  theme = 'light',
+  onThemeToggle,
+  onNavigate,
+  onLogout,
+}: ParentInsightsScreenProps) {
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [insightData, setInsightData] = useState<any | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+
+  // Save and load last selected child
+  useEffect(() => {
+    if (selectedChildId) {
+      localStorage.setItem('lastSelectedChildId', selectedChildId);
+    }
+  }, [selectedChildId]);
 
   useEffect(() => {
     if (!parentId) return;
-    api.dashboard.insights(parentId).then(setInsightData).catch(() => setInsightData(null));
-  }, [parentId]);
+    setIsLoading(true);
+    setInsightData(null);
+    api.dashboard.insights(parentId, { childId: selectedChildId })
+      .then(setInsightData)
+      .catch(() => setInsightData(null))
+      .finally(() => setIsLoading(false));
+  }, [parentId, selectedChildId]);
 
   const handleLogout = () => {
     setShowLogoutConfirm(false);
@@ -39,7 +69,10 @@ export function ParentInsightsScreen({ childName, childAvatar, parentId, theme =
     opportunity: <Lightbulb className="w-6 h-6" />,
   };
 
-  const displayInsights = (insightData?.keyInsights || []).map((insight: any) => ({
+  const keyInsights = Array.isArray(insightData?.keyInsights) ? insightData.keyInsights : [];
+  const recommendations = Array.isArray(insightData?.recommendations) ? insightData.recommendations : [];
+  const emotionalTrendData = Array.isArray(insightData?.emotionalTrends?.data) ? insightData.emotionalTrends.data : [];
+  const displayInsights = keyInsights.map((insight: any) => ({
     ...insight,
     type: insight.type === 'mood' ? 'positive' : insight.type,
     icon: iconByInsightType[insight.type] || <MessageCircle className="w-6 h-6" />,
@@ -49,14 +82,30 @@ export function ParentInsightsScreen({ childName, childAvatar, parentId, theme =
         : null,
     date: insight.date || 'Current',
   }));
-  const displayRecommendations = (insightData?.recommendations || []).map((item: any) => ({
+  const displayRecommendations = recommendations.map((item: any) => ({
     ...item,
     category: item.category || item.type || 'Suggestion',
     suggestion: item.suggestion || item.title,
     reason: item.reason || item.description,
     icon: <CheckCircle className="w-5 h-5 text-[var(--parent-teal)]" />,
   }));
-  const displayEmotionalTrends = insightData?.emotionalTrends?.data || [];
+  const displayEmotionalTrends = emotionalTrendData.map((trend: any, index: number) => {
+    const positive = Number(trend.positive || 0);
+    const neutral = Number(trend.neutral || 0);
+    const negative = Number(trend.negative || 0);
+    const total = positive + neutral + negative;
+
+    return {
+      label: trend.label || trend.week || trend.date || `Period ${index + 1}`,
+      positive,
+      neutral,
+      negative,
+      total,
+      positivePercent: total ? Math.round((positive / total) * 100) : 0,
+      neutralPercent: total ? Math.round((neutral / total) * 100) : 0,
+      negativePercent: total ? Math.round((negative / total) * 100) : 0,
+    };
+  });
   const overallWellbeing = insightData?.overallWellbeing || {
     label: 'Not available',
     message: 'AI insights will appear after shared mood analysis data is available.',
@@ -67,6 +116,10 @@ export function ParentInsightsScreen({ childName, childAvatar, parentId, theme =
       <ParentSidebar 
         childName={childName}
         childAvatar={childAvatar}
+        parentName={parentName}
+        children={children}
+        selectedChildId={selectedChildId}
+        onSelectChild={onSelectChild}
         activeItem="insights"
         onNavigate={onNavigate}
         onLogout={() => setShowLogoutConfirm(true)}
@@ -100,6 +153,13 @@ export function ParentInsightsScreen({ childName, childAvatar, parentId, theme =
 
         {/* Content */}
         <div className="p-4 sm:p-6 lg:p-8 space-y-4 sm:space-y-6">
+          {isLoading ? (
+            <ParentPageLoader
+              title="Loading AI insights"
+              message={`Analyzing ${childName}'s latest wellbeing signals.`}
+            />
+          ) : (
+          <>
           {/* Overall Status */}
           <Card variant="parent">
             <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
@@ -165,26 +225,40 @@ export function ParentInsightsScreen({ childName, childAvatar, parentId, theme =
                 <h3 className="text-[#2d3748] text-lg sm:text-xl">Emotional Trends</h3>
                 <div className="space-y-3">
                   {displayEmotionalTrends.length ? displayEmotionalTrends.map((trend: any) => (
-                    <div key={trend.mood} className="space-y-2">
-                      <div className="flex items-center justify-between text-sm">
-                        <span className="text-[#2d3748]">{trend.mood}</span>
-                        <div className="flex items-center gap-2">
-                          <span className="text-[#64748b]">{trend.percentage}%</span>
-                          <span className={`text-xs ${trend.trend === 'up' ? 'text-green-600' : 'text-red-600'}`}>
-                            {trend.change}
-                          </span>
-                        </div>
+                    <div key={trend.label} className="rounded-xl border border-gray-100 bg-gray-50 p-3 space-y-3">
+                      <div className="flex items-center justify-between gap-3">
+                        <span className="text-sm font-medium text-[#2d3748]">{trend.label}</span>
+                        <span className="text-xs text-[#64748b]">{trend.total} analyzed</span>
                       </div>
-                      <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
-                        <div 
-                          className={`h-full rounded-full transition-all ${
-                            trend.mood === 'Happy' ? 'bg-yellow-400' :
-                            trend.mood === 'Excited' ? 'bg-orange-400' :
-                            trend.mood === 'Calm' ? 'bg-blue-400' :
-                            'bg-gray-400'
-                          }`}
-                          style={{ width: `${trend.percentage}%` }}
+
+                      <div className="h-2.5 bg-gray-200 rounded-full overflow-hidden flex">
+                        <div
+                          className="h-full bg-green-500 transition-all"
+                          style={{ width: `${trend.positivePercent}%` }}
                         />
+                        <div
+                          className="h-full bg-slate-400 transition-all"
+                          style={{ width: `${trend.neutralPercent}%` }}
+                        />
+                        <div
+                          className="h-full bg-rose-400 transition-all"
+                          style={{ width: `${trend.negativePercent}%` }}
+                        />
+                      </div>
+
+                      <div className="grid grid-cols-3 gap-2 text-xs">
+                        <div className="rounded-lg bg-white p-2">
+                          <p className="text-green-600 font-medium">{trend.positivePercent}%</p>
+                          <p className="text-[#64748b]">Positive</p>
+                        </div>
+                        <div className="rounded-lg bg-white p-2">
+                          <p className="text-slate-600 font-medium">{trend.neutralPercent}%</p>
+                          <p className="text-[#64748b]">Neutral</p>
+                        </div>
+                        <div className="rounded-lg bg-white p-2">
+                          <p className="text-rose-600 font-medium">{trend.negativePercent}%</p>
+                          <p className="text-[#64748b]">Negative</p>
+                        </div>
                       </div>
                     </div>
                   )) : (
@@ -244,6 +318,8 @@ export function ParentInsightsScreen({ childName, childAvatar, parentId, theme =
               </div>
             </div>
           </Card>
+          </>
+          )}
         </div>
       </main>
 

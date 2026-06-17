@@ -7,11 +7,16 @@ import { Card } from '../components/Card';
 import { Button } from '../components/Button';
 import { Badge } from '../components/Badge';
 import { LogoutConfirmation } from '../components/LogoutConfirmation';
-import { api, type Parent } from '../services/api';
+import { api, type Child, type Parent } from '../services/api';
+import { ParentPageLoader } from '../components/PageLoaders';
 
 interface ParentNotificationsScreenProps {
   childName: string;
   childAvatar?: string;
+  parentName?: string;
+  children?: Child[];
+  selectedChildId?: string;
+  onSelectChild?: (childId: string) => void;
   parentId?: string;
   theme?: 'light' | 'dark';
   onThemeToggle?: () => Promise<void>;
@@ -26,6 +31,10 @@ const readPreference = (preferences: Record<string, unknown> | undefined, key: s
 export function ParentNotificationsScreen({
   childName,
   childAvatar,
+  parentName,
+  children,
+  selectedChildId,
+  onSelectChild,
   parentId,
   theme = 'light',
   onThemeToggle,
@@ -53,7 +62,7 @@ export function ParentNotificationsScreen({
 
     Promise.all([
       api.parents.me(),
-      parentId ? api.dashboard.activity(parentId).catch(() => null) : Promise.resolve(null),
+      parentId ? api.dashboard.activity(parentId, { childId: selectedChildId }).catch(() => null) : Promise.resolve(null),
     ])
       .then(([profileResponse, activityResponse]) => {
         if (!isMounted) return;
@@ -80,7 +89,7 @@ export function ParentNotificationsScreen({
     return () => {
       isMounted = false;
     };
-  }, [parentId]);
+  }, [parentId, selectedChildId]);
 
   const handleToggle = (key: keyof typeof preferences) => {
     setPreferences((current) => ({
@@ -127,6 +136,10 @@ export function ParentNotificationsScreen({
       <ParentSidebar
         childName={childName}
         childAvatar={childAvatar}
+        parentName={parentName}
+        children={children}
+        selectedChildId={selectedChildId}
+        onSelectChild={onSelectChild}
         activeItem="notifications"
         onNavigate={onNavigate}
         onLogout={() => setShowLogoutConfirm(true)}
@@ -146,6 +159,13 @@ export function ParentNotificationsScreen({
         </header>
 
         <div className="p-4 sm:p-6 lg:p-8 space-y-6">
+          {isLoading ? (
+            <ParentPageLoader
+              title="Loading notifications"
+              message="Loading saved preferences and recent alert activity."
+            />
+          ) : (
+          <>
           <Card variant="parent">
             <div className="flex items-center justify-between gap-3 mb-5">
               <div>
@@ -206,6 +226,8 @@ export function ParentNotificationsScreen({
               )}
             </div>
           </Card>
+          </>
+          )}
         </div>
       </main>
 
