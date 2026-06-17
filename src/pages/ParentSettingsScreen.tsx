@@ -17,11 +17,22 @@ import { api, type Child, type Parent } from '../services/api';
 import { toast } from 'sonner';
 import { ChildAvatar } from '../components/ChildAvatar';
 import { ParentThemeToggle } from '../components/ParentThemeToggle';
+import { ParentSidebar } from '../components/ParentSidebar';
+import { LogoutConfirmation } from '../components/LogoutConfirmation';
+import { ParentPageLoader } from '../components/PageLoaders';
 
 interface ParentSettingsScreenProps {
   onBack: () => void;
+  childName?: string;
+  childAvatar?: string;
+  parentName?: string;
+  children?: Child[];
+  selectedChildId?: string;
+  onSelectChild?: (childId: string) => void;
   theme?: 'light' | 'dark';
   onThemeToggle?: () => Promise<void>;
+  onNavigate?: (page: string) => void;
+  onLogout?: () => void;
   onProfileUpdated?: (parent: Parent) => void;
 }
 
@@ -47,7 +58,20 @@ const applyParentAppearance = (appearance: { theme: 'light' | 'dark'; colorTheme
   document.documentElement.dataset.parentColorTheme = appearance.colorTheme;
 };
 
-export function ParentSettingsScreen({ onBack, theme: parentTheme = 'light', onThemeToggle, onProfileUpdated }: ParentSettingsScreenProps) {
+export function ParentSettingsScreen({
+  onBack,
+  childName = 'Child',
+  childAvatar,
+  parentName,
+  children,
+  selectedChildId,
+  onSelectChild,
+  theme: parentTheme = 'light',
+  onThemeToggle,
+  onNavigate,
+  onLogout,
+  onProfileUpdated,
+}: ParentSettingsScreenProps) {
   const [parentProfile, setParentProfile] = useState<Parent | null>(null);
   const [linkedChildren, setLinkedChildren] = useState<Child[]>([]);
   const [name, setName] = useState('');
@@ -64,6 +88,7 @@ export function ParentSettingsScreen({ onBack, theme: parentTheme = 'light', onT
   const [isSaving, setIsSaving] = useState(false);
   const [settingsMessage, setSettingsMessage] = useState('');
   const [settingsError, setSettingsError] = useState('');
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
 
   useEffect(() => {
     const isDark = document.documentElement.dataset.parentTheme === 'dark';
@@ -186,36 +211,62 @@ export function ParentSettingsScreen({ onBack, theme: parentTheme = 'light', onT
     { name: 'Green', color: '#10b981' },
   ];
 
-  return (
-    <div className="min-h-screen bg-[var(--parent-bg)] flex flex-col">
-      <header className="bg-white border-b border-gray-200 shadow-sm sticky top-0 z-10">
-        <div className="px-4 sm:px-6 lg:px-8 py-4 sm:py-6">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-            <div className="flex items-center gap-3 sm:gap-4">
-              <Button
-                variant="parent-teal"
-                size="small"
-                onClick={onBack}
-                icon={<ArrowLeft className="w-4 h-4 sm:w-5 sm:h-5" />}
-                className="flex-shrink-0"
-              >
-                <span className="hidden sm:inline">Back</span>
-              </Button>
-              <div>
-                <h1 className="text-[#2d3748] text-xl sm:text-2xl lg:text-3xl">Parent Settings</h1>
-                <p className="text-[#64748b] mt-1 text-sm sm:text-base">
-                  Manage your account and preferences
-                </p>
-              </div>
-            </div>
-            <ParentThemeToggle theme={parentTheme} onThemeToggle={onThemeToggle} />
-          </div>
-        </div>
-      </header>
+  const handleNavigation = (page: string) => {
+    if (page === 'settings') return;
+    onNavigate?.(page);
+  };
 
-      <main className="flex-1 px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
+  return (
+    <div className="min-h-screen bg-[var(--parent-bg)] flex">
+      {onNavigate && onLogout && (
+        <ParentSidebar
+          childName={childName}
+          childAvatar={childAvatar}
+          parentName={parentName}
+          children={children}
+          selectedChildId={selectedChildId}
+          onSelectChild={onSelectChild}
+          activeItem="settings"
+          onNavigate={handleNavigation}
+          onLogout={() => setShowLogoutConfirm(true)}
+          onLogoClick={() => onNavigate('overview')}
+        />
+      )}
+
+      <div className="flex min-w-0 flex-1 flex-col">
+        <header className="bg-white border-b border-gray-200 shadow-sm sticky top-0 z-10">
+          <div className="px-4 pr-40 sm:px-6 lg:px-8 py-4 sm:py-6">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+              <div className="flex items-center gap-3 sm:gap-4">
+                <Button
+                  variant="parent-teal"
+                  size="small"
+                  onClick={onBack}
+                  icon={<ArrowLeft className="w-4 h-4 sm:w-5 sm:h-5" />}
+                  className="flex-shrink-0"
+                >
+                  <span className="hidden sm:inline">Back</span>
+                </Button>
+                <div>
+                  <h1 className="text-[#2d3748] text-xl sm:text-2xl lg:text-3xl">Parent Settings</h1>
+                  <p className="text-[#64748b] mt-1 text-sm sm:text-base">
+                    Manage your account and preferences
+                  </p>
+                </div>
+              </div>
+              <ParentThemeToggle theme={parentTheme} onThemeToggle={onThemeToggle} />
+            </div>
+          </div>
+        </header>
+
+        <main className="flex-1 px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
         <div className="max-w-4xl mx-auto space-y-4 sm:space-y-6">
-          {(settingsMessage || settingsError || isLoading) && (
+          {isLoading ? (
+            <ParentPageLoader
+              title="Loading parent settings"
+              message="Loading account, notification, appearance, and linked child settings."
+            />
+          ) : (settingsMessage || settingsError) && (
             <Card variant="parent" className={settingsError ? 'border border-red-200 bg-red-50' : ''}>
               <p
                 className={`text-sm ${
@@ -226,7 +277,7 @@ export function ParentSettingsScreen({ onBack, theme: parentTheme = 'light', onT
                       : 'text-[#64748b]'
                 }`}
               >
-                {settingsError || settingsMessage || 'Loading your settings...'}
+                {settingsError || settingsMessage}
               </p>
             </Card>
           )}
@@ -489,7 +540,20 @@ export function ParentSettingsScreen({ onBack, theme: parentTheme = 'light', onT
             </Button>
           </div>
         </div>
-      </main>
+        </main>
+      </div>
+
+      {onLogout && (
+        <LogoutConfirmation
+          isOpen={showLogoutConfirm}
+          onConfirm={() => {
+            setShowLogoutConfirm(false);
+            onLogout();
+          }}
+          onCancel={() => setShowLogoutConfirm(false)}
+          variant="parent"
+        />
+      )}
     </div>
   );
 }

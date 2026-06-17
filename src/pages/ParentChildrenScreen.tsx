@@ -10,10 +10,15 @@ import { Badge } from '../components/Badge';
 import { LogoutConfirmation } from '../components/LogoutConfirmation';
 import { api, type Child } from '../services/api';
 import { avatarPresets } from '../services/avatar';
+import { ParentPageLoader } from '../components/PageLoaders';
 
 interface ParentChildrenScreenProps {
   childName: string;
   childAvatar?: string;
+  parentName?: string;
+  children?: Child[];
+  selectedChildId?: string;
+  onSelectChild?: (childId: string) => void;
   theme?: 'light' | 'dark';
   onThemeToggle?: () => Promise<void>;
   onNavigate: (page: string) => void;
@@ -44,6 +49,10 @@ const toEditableChild = (child: Child): EditableChild => ({
 export function ParentChildrenScreen({
   childName,
   childAvatar,
+  parentName,
+  children: sidebarChildren,
+  selectedChildId,
+  onSelectChild,
   theme = 'light',
   onThemeToggle,
   onNavigate,
@@ -182,6 +191,10 @@ export function ParentChildrenScreen({
       <ParentSidebar
         childName={childName}
         childAvatar={childAvatar}
+        parentName={parentName}
+        children={sidebarChildren}
+        selectedChildId={selectedChildId}
+        onSelectChild={onSelectChild}
         activeItem="children"
         onNavigate={onNavigate}
         onLogout={() => setShowLogoutConfirm(true)}
@@ -232,9 +245,10 @@ export function ParentChildrenScreen({
 
           <div className="grid gap-5">
             {isLoading ? (
-              <Card variant="parent">
-                <p className="text-sm text-[#64748b]">Loading linked children...</p>
-              </Card>
+              <ParentPageLoader
+                title="Loading linked children"
+                message="Fetching child profiles, privacy settings, and account details."
+              />
             ) : children.length ? children.map((child) => {
               const draft = drafts[child.id] || toEditableChild(child);
               return (

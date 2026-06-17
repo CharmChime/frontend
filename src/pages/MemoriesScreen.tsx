@@ -23,6 +23,7 @@ import {
   wordCount,
 } from '../services/journalAdapters';
 import { toast } from 'sonner';
+import { ChildPageLoader } from '../components/PageLoaders';
 
 interface MemoriesScreenProps {
   onBack: () => void;
@@ -295,6 +296,7 @@ export function MemoriesScreen({ onBack, childName = 'Friend', childAvatar, chil
         <ChildSidebar 
           childName={childName}
           childAvatar={childAvatar}
+          childId={childId}
           activeItem="memories"
           onNavigate={handleSidebarNavigation}
           onLogout={() => setShowLogoutConfirm(true)}
@@ -396,9 +398,11 @@ export function MemoriesScreen({ onBack, childName = 'Friend', childAvatar, chil
 
           {/* Memory Grid */}
           {isLoading && (
-            <Card variant="child" className="text-center py-10">
-              <p className="text-[#64748b]">Loading your memories...</p>
-            </Card>
+            <ChildPageLoader
+              childName={childName}
+              childAvatar={childAvatar}
+              message="Finding your favorite memories and journal moments."
+            />
           )}
 
           {error && (

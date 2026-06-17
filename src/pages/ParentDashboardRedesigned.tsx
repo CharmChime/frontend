@@ -4,20 +4,12 @@ import { Button } from "../components/Button";
 import { Badge } from "../components/Badge";
 import { LogoutConfirmation } from "../components/LogoutConfirmation";
 import {
-  Shield,
-  Home,
-  Users,
-  BarChart,
-  FileText,
-  Bell,
-  Settings,
-  LogOut,
-  Activity,
-  TrendingUp,
   Calendar,
   CheckCircle,
   Heart,
   BarChart3,
+  TrendingUp,
+  Activity,
 } from "lucide-react";
 import {
   LineChart,
@@ -34,14 +26,18 @@ import {
   Legend,
   ResponsiveContainer,
 } from "recharts";
-import logo from "../assets/35160e99e546074153c34366a831aa0e30d421e6.png";
-import { api } from "../services/api";
-import { ChildAvatar } from "../components/ChildAvatar";
+import { api, type Child } from "../services/api";
 import { ParentThemeToggle } from "../components/ParentThemeToggle";
+import { ParentSidebar } from "../components/ParentSidebar";
+import { ParentDashboardLoader } from "../components/PageLoaders";
 
 interface ParentDashboardRedesignedProps {
   childName: string;
   childAvatar?: string;
+  parentName?: string;
+  children?: Child[];
+  selectedChildId?: string;
+  onSelectChild?: (childId: string) => void;
   parentId?: string;
   theme?: "light" | "dark";
   onThemeToggle?: () => Promise<void>;
@@ -53,6 +49,10 @@ interface ParentDashboardRedesignedProps {
 export function ParentDashboardRedesigned({
   childName,
   childAvatar,
+  parentName,
+  children,
+  selectedChildId,
+  onSelectChild,
   parentId,
   theme = "light",
   onThemeToggle,
@@ -65,13 +65,37 @@ export function ParentDashboardRedesigned({
     useState(false);
   const [overview, setOverview] = useState<any | null>(null);
   const [analytics, setAnalytics] = useState<any | null>(null);
+  const [isLoadingDashboard, setIsLoadingDashboard] = useState(false);
+
+  // Save and load last selected child
+  useEffect(() => {
+    if (selectedChildId) {
+      localStorage.setItem('lastSelectedChildId', selectedChildId);
+    }
+  }, [selectedChildId]);
 
   useEffect(() => {
     if (!parentId) return;
 
-    api.dashboard.overview(parentId).then(setOverview).catch(() => setOverview(null));
-    api.dashboard.analytics(parentId).then(setAnalytics).catch(() => setAnalytics(null));
-  }, [parentId]);
+    setOverview(null);
+    setAnalytics(null);
+    setIsLoadingDashboard(true);
+    const scope = { childId: selectedChildId };
+
+    Promise.all([
+      api.dashboard.overview(parentId, scope),
+      api.dashboard.analytics(parentId, scope),
+    ])
+      .then(([overviewData, analyticsData]) => {
+        setOverview(overviewData);
+        setAnalytics(analyticsData);
+      })
+      .catch(() => {
+        setOverview(null);
+        setAnalytics(null);
+      })
+      .finally(() => setIsLoadingDashboard(false));
+  }, [parentId, selectedChildId]);
 
   const handleLogout = () => {
     setShowLogoutConfirm(false);
@@ -90,27 +114,37 @@ export function ParentDashboardRedesigned({
   };
 
   const moodColors = ["#ffe8a3", "#b8f4d3", "#ffd4c4", "#e1d4f7", "#cbd5e1"];
+  const weeklyMoodPattern = Array.isArray(analytics?.weeklyMoodPattern)
+    ? analytics.weeklyMoodPattern
+    : [];
+  const weeklyActivity = Array.isArray(analytics?.writingActivity?.weeklyActivity)
+    ? analytics.writingActivity.weeklyActivity
+    : [];
+  const moodSummaryDistribution = Array.isArray(overview?.moodSummary?.moodDistribution)
+    ? overview.moodSummary.moodDistribution
+    : [];
   const weeklyMoodData = useMemo(
     () =>
-      (analytics?.weeklyMoodPattern || []).map((day: any) => {
+      weeklyMoodPattern.map((day: any) => {
         const row: Record<string, string | number> = { day: day.day };
-        (day.moods || []).forEach((item: any) => {
+        const moods = Array.isArray(day.moods) ? day.moods : [];
+        moods.forEach((item: any) => {
           row[item.mood] = item.count;
         });
         return row;
       }),
-    [analytics]
+    [weeklyMoodPattern]
   );
   const moodKeys = useMemo(
     () => Array.from(new Set(weeklyMoodData.flatMap((row) => Object.keys(row).filter((key) => key !== "day")))),
     [weeklyMoodData]
   );
-  const moodDistribution = (overview?.moodSummary?.moodDistribution || []).map((item: any, index: number) => ({
+  const moodDistribution = moodSummaryDistribution.map((item: any, index: number) => ({
     name: item.mood,
     value: item.count,
     color: moodColors[index % moodColors.length],
   }));
-  const activityTrend = (analytics?.writingActivity?.weeklyActivity || []).map((item: any) => ({
+  const activityTrend = weeklyActivity.map((item: any) => ({
     week: item.label,
     entries: item.count,
   }));
@@ -119,122 +153,20 @@ export function ParentDashboardRedesigned({
     ? new Date(overview.lastActiveAt).toLocaleString()
     : "No activity yet";
 
-  const menuItems = [
-    {
-      id: "overview",
-      label: "Overview",
-      icon: <Home className="w-5 h-5" />,
-    },
-    {
-      id: "analytics",
-      label: "Analytics",
-      icon: <BarChart className="w-5 h-5" />,
-    },
-    {
-      id: "insights",
-      label: "AI Insights",
-      icon: <TrendingUp className="w-5 h-5" />,
-    },
-    {
-      id: "activity",
-      label: "Activity Log",
-      icon: <Activity className="w-5 h-5" />,
-    },
-    {
-      id: "children",
-      label: "Children",
-      icon: <Users className="w-5 h-5" />,
-    },
-    {
-      id: "reports",
-      label: "Reports",
-      icon: <FileText className="w-5 h-5" />,
-    },
-  ];
-
   return (
     <div className="min-h-screen bg-[var(--parent-bg)] flex">
-      {/* Sidebar */}
-      <aside className="w-64 bg-white border-r border-gray-200 shadow-lg flex flex-col flex-shrink-0">
-        {/* Logo/Brand Section */}
-        <div className="p-6 border-b border-gray-200">
-          <div className="flex items-center gap-3 mb-4">
-            <img
-              src={logo}
-              alt="CharmChime Logo"
-              className="w-12 h-12 object-contain"
-            />
-            <div className="flex-1">
-              <h3 className="text-[#2d3748]">CharmChime</h3>
-              <p className="text-xs text-[#64748b]">
-                Parent Portal
-              </p>
-            </div>
-          </div>
-
-          {/* Child Info */}
-          <div className="bg-[var(--parent-teal)]/10 rounded-xl p-3">
-            <div className="flex items-center gap-2">
-              <ChildAvatar avatar={childAvatar} name={childName} size="small" />
-              <div className="flex-1 min-w-0">
-                <p className="text-sm text-[#2d3748] truncate">
-                  Monitoring
-                </p>
-                <p className="text-xs text-[#64748b]">
-                  {childName}
-                </p>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Navigation Menu */}
-        <nav className="flex-1 p-4 space-y-2">
-          {menuItems.map((item) => (
-            <button
-              key={item.id}
-              onClick={() => handleNavigation(item.id)}
-              className={`
-                w-full flex items-center gap-3 px-4 py-3 rounded-xl
-                transition-all duration-200
-                ${
-                  activeTab === item.id
-                    ? "bg-[var(--parent-teal)] text-white shadow-md"
-                    : "text-[#64748b] hover:bg-gray-50"
-                }
-              `}
-            >
-              {item.icon}
-              <span>{item.label}</span>
-            </button>
-          ))}
-        </nav>
-
-        {/* Bottom Actions */}
-        <div className="p-4 border-t border-gray-200 space-y-2">
-          <button
-            onClick={() => handleNavigation("notifications")}
-            className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-[#64748b] hover:bg-gray-50 transition-colors"
-          >
-            <Bell className="w-5 h-5" />
-            <span>Notifications</span>
-          </button>
-          <button
-            onClick={() => handleNavigation("settings")}
-            className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-[#64748b] hover:bg-gray-50 transition-colors"
-          >
-            <Settings className="w-5 h-5" />
-            <span>Settings</span>
-          </button>
-          <button
-            onClick={() => setShowLogoutConfirm(true)}
-            className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-[#64748b] hover:bg-red-50 hover:text-red-600 transition-colors"
-          >
-            <LogOut className="w-5 h-5" />
-            <span>Logout</span>
-          </button>
-        </div>
-      </aside>
+      <ParentSidebar
+        childName={childName}
+        childAvatar={childAvatar}
+        parentName={parentName}
+        children={children}
+        selectedChildId={selectedChildId}
+        onSelectChild={onSelectChild}
+        activeItem={activeTab}
+        onNavigate={handleNavigation}
+        onLogout={() => setShowLogoutConfirm(true)}
+        onLogoClick={() => handleNavigation("overview")}
+      />
 
       {/* Main Content Area */}
       <main className="flex-1 overflow-auto">
@@ -253,7 +185,7 @@ export function ParentDashboardRedesigned({
               </div>
               <div className="flex items-center gap-3">
                 <ParentThemeToggle theme={theme} onThemeToggle={onThemeToggle} />
-                <Badge variant="parent-teal">{overview ? "Live data" : "Loading"}</Badge>
+                <Badge variant="parent-teal">{isLoadingDashboard ? "Loading" : "Live data"}</Badge>
               </div>
             </div>
           </div>
@@ -261,6 +193,10 @@ export function ParentDashboardRedesigned({
 
         {/* Content */}
         <div className="p-8 space-y-6">
+          {isLoadingDashboard ? (
+            <ParentDashboardLoader childName={childName} />
+          ) : (
+          <>
           {/* Quick Stats */}
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             <Card variant="parent" padding="medium">
@@ -501,6 +437,8 @@ export function ParentDashboardRedesigned({
               </p>
             </div>
           </Card>
+          </>
+          )}
         </div>
       </main>
 

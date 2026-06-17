@@ -5,6 +5,7 @@ import { Badge } from '../components/Badge';
 import { ChildSidebar } from '../components/ChildSidebar';
 import { MobileMenuButton } from '../components/MobileMenuButton';
 import { LogoutConfirmation } from '../components/LogoutConfirmation';
+import { ChildPageLoader } from '../components/PageLoaders';
 import { ArrowLeft, Trophy, Star, Heart, Flame, BookOpen, Sparkles, Target, Award, Zap } from 'lucide-react';
 import { api, type AchievementItem, type AchievementProgress } from '../services/api';
 
@@ -180,6 +181,7 @@ export function AchievementsScreen({ onBack, childName = 'Friend', childAvatar, 
         <ChildSidebar 
           childName={childName}
           childAvatar={childAvatar}
+          childId={childId}
           activeItem="achievements"
           onNavigate={handleSidebarNavigation}
           onLogout={() => setShowLogoutConfirm(true)}
@@ -215,10 +217,16 @@ export function AchievementsScreen({ onBack, childName = 'Friend', childAvatar, 
             <p className="text-[#64748b] text-sm sm:text-base">Look at all the amazing things you've done!</p>
           </div>
 
-          {(isLoading || error) && (
+          {isLoading && !error ? (
+            <ChildPageLoader
+              childName={childName}
+              childAvatar={childAvatar}
+              message="Counting your badges, points, and new wins."
+            />
+          ) : error && (
             <Card variant="child" className={error ? 'border-2 border-red-200 bg-red-50' : ''}>
               <p className={`text-center text-sm ${error ? 'text-red-700' : 'text-[#64748b]'}`}>
-                {error || 'Loading your real achievements...'}
+                {error}
               </p>
             </Card>
           )}

@@ -464,25 +464,25 @@ export const api = {
       }),
   },
   dashboard: {
-    overview: (parentId: string) =>
+    overview: (parentId: string, params: { childId?: string } = {}) =>
       request<any>(`/v1/dashboard/parent/${parentId}/overview`, {
         headers: authHeaders("parent"),
-      }),
-    analytics: (parentId: string) =>
+      }, params),
+    analytics: (parentId: string, params: { childId?: string } = {}) =>
       request<any>(`/v1/dashboard/parent/${parentId}/analytics`, {
         headers: authHeaders("parent"),
-      }),
-    insights: (parentId: string) =>
+      }, params),
+    insights: (parentId: string, params: { childId?: string } = {}) =>
       request<any>(`/v1/dashboard/parent/${parentId}/ai-insights`, {
         headers: authHeaders("parent"),
-      }),
-    activity: (parentId: string, params: { type?: string } = {}) =>
+      }, params),
+    activity: (parentId: string, params: { type?: string; childId?: string; limit?: number } = {}) =>
       request<any>(
         `/v1/dashboard/parent/${parentId}/activity-log`,
         { headers: authHeaders("parent") },
         params
       ),
-    reports: (parentId: string, params: { range?: string; startDate?: string; endDate?: string } = {}) =>
+    reports: (parentId: string, params: { range?: string; startDate?: string; endDate?: string; childId?: string } = {}) =>
       request<any>(
         `/v1/dashboard/parent/${parentId}/reports`,
         { headers: authHeaders("parent") },

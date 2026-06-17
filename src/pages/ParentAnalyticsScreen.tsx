@@ -3,15 +3,20 @@ import { ParentSidebar } from '../components/ParentSidebar';
 import { Card } from '../components/Card';
 import { Button } from '../components/Button';
 import { Badge } from '../components/Badge';
-import { LineChart, Line, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar } from 'recharts';
+import { LineChart, Line, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { TrendingUp, Download } from 'lucide-react';
 import { LogoutConfirmation } from '../components/LogoutConfirmation';
-import { api } from '../services/api';
+import { api, type Child } from '../services/api';
 import { ParentThemeToggle } from '../components/ParentThemeToggle';
+import { ParentPageLoader } from '../components/PageLoaders';
 
 interface ParentAnalyticsScreenProps {
   childName: string;
   childAvatar?: string;
+  parentName?: string;
+  children?: Child[];
+  selectedChildId?: string;
+  onSelectChild?: (childId: string) => void;
   parentId?: string;
   theme?: 'light' | 'dark';
   onThemeToggle?: () => Promise<void>;
@@ -19,15 +24,40 @@ interface ParentAnalyticsScreenProps {
   onLogout: () => void;
 }
 
-export function ParentAnalyticsScreen({ childName, childAvatar, parentId, theme = 'light', onThemeToggle, onNavigate, onLogout }: ParentAnalyticsScreenProps) {
+export function ParentAnalyticsScreen({
+  childName,
+  childAvatar,
+  parentName,
+  children,
+  selectedChildId,
+  onSelectChild,
+  parentId,
+  theme = 'light',
+  onThemeToggle,
+  onNavigate,
+  onLogout,
+}: ParentAnalyticsScreenProps) {
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [timeRange, setTimeRange] = useState<'week' | 'month' | 'year'>('month');
   const [analytics, setAnalytics] = useState<any | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+
+  // Save and load last selected child
+  useEffect(() => {
+    if (selectedChildId) {
+      localStorage.setItem('lastSelectedChildId', selectedChildId);
+    }
+  }, [selectedChildId]);
 
   useEffect(() => {
     if (!parentId) return;
-    api.dashboard.analytics(parentId).then(setAnalytics).catch(() => setAnalytics(null));
-  }, [parentId]);
+    setIsLoading(true);
+    setAnalytics(null);
+    api.dashboard.analytics(parentId, { childId: selectedChildId })
+      .then(setAnalytics)
+      .catch(() => setAnalytics(null))
+      .finally(() => setIsLoading(false));
+  }, [parentId, selectedChildId]);
 
   const handleLogout = () => {
     setShowLogoutConfirm(false);
@@ -100,19 +130,25 @@ export function ParentAnalyticsScreen({ childName, childAvatar, parentId, theme 
     return items.slice(-Math.min(limit, items.length));
   };
 
-  const sentimentTrend = filterByDateOrLimit(analytics?.sentimentTrend?.data || [], 'date', rangeConfig.sentimentLimit);
-  const emotionalProfile = (analytics?.emotionalProfile?.topEmotions || []).map((item: any) => ({
+  const sentimentTrendData = Array.isArray(analytics?.sentimentTrend?.data) ? analytics.sentimentTrend.data : [];
+  const topEmotions = Array.isArray(analytics?.emotionalProfile?.topEmotions) ? analytics.emotionalProfile.topEmotions : [];
+  const weeklyActivityData = Array.isArray(analytics?.writingActivity?.weeklyActivity)
+    ? analytics.writingActivity.weeklyActivity
+    : [];
+  const discussedThemes = Array.isArray(analytics?.mostDiscussedThemes) ? analytics.mostDiscussedThemes : [];
+  const sentimentTrend = filterByDateOrLimit(sentimentTrendData, 'date', rangeConfig.sentimentLimit);
+  const emotionalProfile = topEmotions.map((item: any) => ({
     emotion: item.emotion,
     value: item.percentage || item.count || 0,
   }));
-  const writingActivity = (analytics?.writingActivity?.weeklyActivity || [])
-    .slice(-Math.min(rangeConfig.activityLimit, analytics?.writingActivity?.weeklyActivity?.length || 0))
+  const writingActivity = weeklyActivityData
+    .slice(-Math.min(rangeConfig.activityLimit, weeklyActivityData.length))
     .map((item: any) => ({
     week: item.label,
     entries: item.count,
     words: analytics?.writingActivity?.averageWordsPerEntry || 0,
   }));
-  const topThemes = (analytics?.mostDiscussedThemes || []).slice(0, rangeConfig.themeLimit);
+  const topThemes = discussedThemes.slice(0, rangeConfig.themeLimit);
   const totalEntries = writingActivity.reduce((sum: number, item: any) => sum + Number(item.entries || 0), 0);
   const averageWords = analytics?.writingActivity?.averageWordsPerEntry || 0;
   const dominantMood = analytics?.emotionalProfile?.dominantMood || 'Not available';
@@ -126,6 +162,10 @@ export function ParentAnalyticsScreen({ childName, childAvatar, parentId, theme 
       <ParentSidebar 
         childName={childName}
         childAvatar={childAvatar}
+        parentName={parentName}
+        children={children}
+        selectedChildId={selectedChildId}
+        onSelectChild={onSelectChild}
         activeItem="analytics"
         onNavigate={onNavigate}
         onLogout={() => setShowLogoutConfirm(true)}
@@ -184,6 +224,13 @@ export function ParentAnalyticsScreen({ childName, childAvatar, parentId, theme 
 
         {/* Content */}
         <div className="p-4 sm:p-6 lg:p-8 space-y-4 sm:space-y-6">
+          {isLoading ? (
+            <ParentPageLoader
+              title="Loading analytics"
+              message={`Preparing ${childName}'s latest emotional and writing trends.`}
+            />
+          ) : (
+          <>
           {/* Sentiment Trend */}
           <Card variant="parent">
             <div className="space-y-4">
@@ -220,23 +267,44 @@ export function ParentAnalyticsScreen({ childName, childAvatar, parentId, theme 
             <Card variant="parent">
               <div className="space-y-4">
                 <h3 className="text-[#2d3748] text-lg sm:text-xl">Emotional Profile</h3>
-                <div className="h-64 sm:h-80 min-h-[16rem] sm:min-h-[20rem] w-full">
-                  {emotionalProfile.length ? (
-                  <ResponsiveContainer width="100%" height="100%">
-                    <RadarChart data={emotionalProfile}>
-                      <PolarGrid />
-                      <PolarAngleAxis dataKey="emotion" />
-                      <PolarRadiusAxis angle={90} domain={[0, 100]} />
-                      <Radar name="Emotional Strength" dataKey="value" stroke="#237e8f" fill="#237e8f" fillOpacity={0.6} />
-                      <Tooltip />
-                    </RadarChart>
-                  </ResponsiveContainer>
-                  ) : (
-                    <div className="flex h-full items-center justify-center text-sm text-[#64748b]">
-                      No emotional profile available yet.
-                    </div>
-                  )}
-                </div>
+                {emotionalProfile.length ? (
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                    {emotionalProfile.map((item: any, index: number) => (
+                      <div key={item.emotion} className="bg-gradient-to-br from-blue-50 to-teal-50 rounded-lg p-4 border border-blue-100 hover:shadow-md transition-shadow">
+                        <div className="flex items-start justify-between mb-3">
+                          <div className="text-2xl">
+                            {item.emotion === 'Happy' && '😊'}
+                            {item.emotion === 'Sad' && '😢'}
+                            {item.emotion === 'Angry' && '😠'}
+                            {item.emotion === 'Anxious' && '😰'}
+                            {item.emotion === 'Calm' && '😌'}
+                            {item.emotion === 'Excited' && '🤩'}
+                            {item.emotion === 'Neutral' && '😐'}
+                            {!['Happy', 'Sad', 'Angry', 'Anxious', 'Calm', 'Excited', 'Neutral'].includes(item.emotion) && '💭'}
+                          </div>
+                          <span className="text-xs bg-[var(--parent-teal)] text-white px-2 py-1 rounded-full">#{index + 1}</span>
+                        </div>
+                        <h4 className="text-[#2d3748] font-semibold text-sm mb-1">{item.emotion}</h4>
+                        <div className="mb-2">
+                          <div className="flex items-baseline gap-1">
+                            <span className="text-xl font-bold text-[var(--parent-teal)]">{Math.round(item.value)}</span>
+                            <span className="text-xs text-[#64748b]">%</span>
+                          </div>
+                        </div>
+                        <div className="w-full bg-gray-200 rounded-full h-2 overflow-hidden">
+                          <div 
+                            className="bg-gradient-to-r from-[var(--parent-teal)] to-blue-500 h-full rounded-full transition-all"
+                            style={{ width: `${Math.min(item.value, 100)}%` }}
+                          />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="flex h-40 items-center justify-center text-sm text-[#64748b]">
+                    No emotional profile available yet.
+                  </div>
+                )}
                 <p className="text-sm text-[#64748b]">
                   {emotionalProfile.length ? 'Generated from shared mood analysis data.' : 'Mood profile data is not available yet.'}
                 </p>
@@ -256,8 +324,8 @@ export function ParentAnalyticsScreen({ childName, childAvatar, parentId, theme 
                     <LineChart data={writingActivity}>
                       <CartesianGrid strokeDasharray="3 3" />
                       <XAxis dataKey="week" />
-                      <YAxis yAxisId="left" />
-                      <YAxis yAxisId="right" orientation="right" />
+                      <YAxis yAxisId="left" stroke="#237e8f" label={{ value: 'Entries', angle: -90, position: 'insideLeft', fill: '#237e8f', offset: 10 }} />
+                      <YAxis yAxisId="right" orientation="right" stroke="#10b981" label={{ value: 'Avg Words', angle: 90, position: 'insideRight', fill: '#10b981', offset: 10 }} />
                       <Tooltip />
                       <Legend />
                       <Line yAxisId="left" type="monotone" dataKey="entries" stroke="#237e8f" strokeWidth={3} name="Entries" />
@@ -327,6 +395,8 @@ export function ParentAnalyticsScreen({ childName, childAvatar, parentId, theme 
               </div>
             </Card>
           </div>
+          </>
+          )}
         </div>
       </main>
 

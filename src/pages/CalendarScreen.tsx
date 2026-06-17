@@ -168,6 +168,7 @@ export function CalendarScreen({ onBack, childName = 'Friend', childAvatar, chil
         <ChildSidebar 
           childName={childName}
           childAvatar={childAvatar}
+          childId={childId}
           activeItem="calendar"
           onNavigate={onNavigate}
           onLogout={() => setShowLogoutConfirm(true)}

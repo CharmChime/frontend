@@ -237,6 +237,7 @@ export function StoryModeScreen({ onBack, childName = 'Friend', childAvatar, chi
         <ChildSidebar 
           childName={childName}
           childAvatar={childAvatar}
+          childId={childId}
           activeItem="story-mode"
           onNavigate={handleSidebarNavigation}
           onLogout={() => setShowLogoutConfirm(true)}
