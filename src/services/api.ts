@@ -1,4 +1,17 @@
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:5000/api";
+const configuredApiBaseUrl = String(import.meta.env.VITE_API_BASE_URL || "").trim();
+
+const API_BASE_URL = (
+  configuredApiBaseUrl ||
+  (import.meta.env.DEV ? "http://localhost:5000/api" : "")
+).replace(/\/+$/, "");
+
+const ensureApiConfigured = () => {
+  if (!API_BASE_URL) {
+    throw new ApiRequestError(
+      "The production API URL is not configured. Add VITE_API_BASE_URL in Vercel and redeploy."
+    );
+  }
+};
 
 type ApiEnvelope<T> = {
   statusCode?: number;
@@ -55,6 +68,7 @@ async function request<T>(
   options: RequestInit = {},
   params?: Record<string, QueryValue>
 ): Promise<T> {
+  ensureApiConfigured();
   const isFormData = options.body instanceof FormData;
   const response = await fetch(`${API_BASE_URL}${path}${buildQuery(params)}`, {
     ...options,
@@ -108,6 +122,7 @@ async function requestAudio(
   body: Record<string, unknown>,
   userType: UserType = "child"
 ): Promise<Blob> {
+  ensureApiConfigured();
   const response = await fetch(`${API_BASE_URL}${path}`, {
     method: "POST",
     headers: { "Content-Type": "application/json", ...authHeaders(userType) },
