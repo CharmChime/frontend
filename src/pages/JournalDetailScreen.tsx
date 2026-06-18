@@ -49,6 +49,9 @@ export function JournalDetailScreen({
   const [isFavorite, setIsFavorite] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [entry, setEntry] = useState<any | null>(null);
+  const [isEditing, setIsEditing] = useState(false);
+  const [isSavingEdit, setIsSavingEdit] = useState(false);
+  const [draftTitle, setDraftTitle] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
   const [actionMessage, setActionMessage] = useState('');
@@ -58,6 +61,7 @@ export function JournalDetailScreen({
   const entryAudioUrlRef = useRef<string | null>(null);
   const feedbackAudioRef = useRef<HTMLAudioElement | null>(null);
   const feedbackAudioUrlRef = useRef<string | null>(null);
+  const editContentRef = useRef<HTMLDivElement | null>(null);
 
   const handleLogout = () => {
     setShowLogoutConfirm(false);
@@ -313,7 +317,48 @@ export function JournalDetailScreen({
   };
 
   const handleEditEntry = () => {
-    onNavigate?.('entry');
+    setDraftTitle(entry.title);
+    setIsEditing(true);
+    setActionMessage('');
+  };
+
+  const handleCancelEdit = () => {
+    setIsEditing(false);
+    setDraftTitle('');
+    setActionMessage('');
+  };
+
+  const handleSaveEdit = async () => {
+    const cleanTitle = draftTitle.trim();
+    const cleanContent = sanitizeRichTextHtml(editContentRef.current?.innerHTML || '').trim();
+
+    if (!cleanTitle || !htmlToText(cleanContent)) {
+      setActionMessage('A title and journal text are required.');
+      return;
+    }
+
+    setIsSavingEdit(true);
+    setActionMessage('');
+
+    try {
+      const { journal } = await api.journals.update(entry.id, {
+        title: cleanTitle,
+        content: cleanContent,
+      });
+      setEntry((current: any) => ({
+        ...current,
+        title: journal.title,
+        content: journal.content,
+        wordCount: wordCount(journal.content),
+        readingTime: readingTime(journal.content),
+      }));
+      setIsEditing(false);
+      setActionMessage('Journal entry updated successfully.');
+    } catch (err) {
+      setActionMessage(err instanceof Error ? err.message : 'Could not update this journal entry.');
+    } finally {
+      setIsSavingEdit(false);
+    }
   };
 
   const handleCreateStory = () => {
@@ -382,7 +427,18 @@ export function JournalDetailScreen({
                   <ArrowLeft className="w-5 h-5" />
                 </IconButton>
                 <div className="flex-1 min-w-0">
-                  <h1 className="text-[#1a365d] text-xl sm:text-2xl lg:text-3xl truncate">{entry.title}</h1>
+                  {isEditing ? (
+                    <input
+                      type="text"
+                      value={draftTitle}
+                      onChange={(event) => setDraftTitle(event.target.value)}
+                      disabled={isSavingEdit}
+                      className="w-full max-w-xl rounded-lg border border-white/70 bg-white px-3 py-2 text-xl text-[#1a365d] outline-none focus:ring-2 focus:ring-[var(--child-yellow)] sm:text-2xl"
+                      aria-label="Journal title"
+                    />
+                  ) : (
+                    <h1 className="text-[#1a365d] text-xl sm:text-2xl lg:text-3xl truncate">{entry.title}</h1>
+                  )}
                   <div className="flex flex-wrap items-center gap-2 mt-1">
                     <Badge variant="child-yellow" className="text-xs sm:text-sm">
                       <Calendar className="w-3 h-3 sm:w-4 sm:h-4 mr-1" />
@@ -402,10 +458,10 @@ export function JournalDetailScreen({
                 >
                   <Star className="w-5 h-5" fill={isFavorite ? "currentColor" : "none"} />
                 </IconButton>
-                <IconButton variant="child-mint" size="medium">
+                <IconButton variant="child-mint" size="medium" onClick={handleShareEntry}>
                   <Share2 className="w-5 h-5" />
                 </IconButton>
-                <IconButton variant="child-peach" size="medium">
+                <IconButton variant="child-peach" size="medium" onClick={handleEditEntry}>
                   <Edit className="w-5 h-5" />
                 </IconButton>
               </div>
@@ -583,12 +639,42 @@ export function JournalDetailScreen({
                 <Sparkles className="w-5 h-5 text-[var(--child-blue)]" fill="currentColor" />
                 <h3 className="text-[#2d3748] text-lg sm:text-xl">Your Story</h3>
               </div>
-              <div className="prose prose-lg max-w-none">
-                <div
-                  className="journal-rich-content text-[#2d3748] leading-relaxed text-sm sm:text-base lg:text-lg"
-                  dangerouslySetInnerHTML={{ __html: sanitizeRichTextHtml(entry.content) }}
-                />
-              </div>
+              {isEditing ? (
+                <div className="space-y-3">
+                  <div
+                    ref={editContentRef}
+                    contentEditable={!isSavingEdit}
+                    suppressContentEditableWarning
+                    className="journal-rich-content min-h-48 rounded-xl border border-gray-200 bg-white p-4 text-sm leading-relaxed text-[#2d3748] outline-none focus:ring-2 focus:ring-[var(--child-blue)] sm:text-base lg:text-lg"
+                    dangerouslySetInnerHTML={{ __html: sanitizeRichTextHtml(entry.content) }}
+                  />
+                  <div className="flex flex-wrap justify-end gap-2">
+                    <Button
+                      variant="child-slate"
+                      size="small"
+                      onClick={handleCancelEdit}
+                      disabled={isSavingEdit}
+                    >
+                      Cancel
+                    </Button>
+                    <Button
+                      variant="child-blue"
+                      size="small"
+                      onClick={handleSaveEdit}
+                      disabled={isSavingEdit}
+                    >
+                      {isSavingEdit ? 'Saving...' : 'Save Entry'}
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <div className="prose prose-lg max-w-none">
+                  <div
+                    className="journal-rich-content text-[#2d3748] leading-relaxed text-sm sm:text-base lg:text-lg"
+                    dangerouslySetInnerHTML={{ __html: sanitizeRichTextHtml(entry.content) }}
+                  />
+                </div>
+              )}
             </div>
           </Card>
 

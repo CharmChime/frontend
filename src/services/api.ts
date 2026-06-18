@@ -398,6 +398,12 @@ export const api = {
       request<{ journal: Journal }>(`/v1/journals/${journalId}`, {
         headers: authHeaders("child"),
       }),
+    update: (journalId: string, body: { title?: string; content?: string }) =>
+      request<{ journal: Journal }>(`/v1/journals/${journalId}`, {
+        method: "PATCH",
+        headers: authHeaders("child"),
+        body: JSON.stringify(body),
+      }),
     create: (body: {
       childId: string;
       title?: string;
