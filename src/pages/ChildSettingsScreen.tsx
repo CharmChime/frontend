@@ -5,7 +5,7 @@ import { ChildSidebar } from '../components/ChildSidebar';
 import { MobileMenuButton } from '../components/MobileMenuButton';
 import { LogoutConfirmation } from '../components/LogoutConfirmation';
 import { ChildPageLoader } from '../components/PageLoaders';
-import { ArrowLeft, User, Bell, Shield } from 'lucide-react';
+import { ArrowLeft, User, Bell, Shield, Languages } from 'lucide-react';
 import { api, type Child } from '../services/api';
 import { toast } from 'sonner';
 import { ChildAvatar } from '../components/ChildAvatar';
@@ -29,6 +29,20 @@ const readBooleanPreference = (
   return typeof preferences?.[key] === 'boolean' ? Boolean(preferences[key]) : fallback;
 };
 
+const speechLanguages = [
+  { code: 'en', label: 'English' },
+  { code: 'ur', label: 'Urdu' },
+  { code: 'hi', label: 'Hindi' },
+  { code: 'ar', label: 'Arabic' },
+  { code: 'es', label: 'Spanish' },
+  { code: 'fr', label: 'French' },
+] as const;
+
+const readSpeechLanguage = (preferences: Record<string, unknown> | undefined) => {
+  const value = preferences?.speechLanguage;
+  return speechLanguages.some((language) => language.code === value) ? String(value) : 'en';
+};
+
 export function ChildSettingsScreen({
   onBack,
   childName,
@@ -40,6 +54,7 @@ export function ChildSettingsScreen({
 }: ChildSettingsScreenProps) {
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
   const [shareMoodEnabled, setShareMoodEnabled] = useState(true);
+  const [speechLanguage, setSpeechLanguage] = useState('en');
   const [avatar, setAvatar] = useState(childAvatar || 'sunny-spark');
   const [name, setName] = useState(childName);
   const [nickname, setNickname] = useState('');
@@ -72,6 +87,7 @@ export function ChildSettingsScreen({
           readBooleanPreference(child.preferences, 'notificationsEnabled', true)
         );
         setShareMoodEnabled(readBooleanPreference(child.preferences, 'shareMoodEnabled', true));
+        setSpeechLanguage(readSpeechLanguage(child.preferences));
         onProfileUpdated?.(child);
       })
       .catch((error) => {
@@ -134,6 +150,7 @@ export function ChildSettingsScreen({
           ...savedPreferences,
           notificationsEnabled,
           shareMoodEnabled,
+          speechLanguage,
         },
       });
 
@@ -290,6 +307,50 @@ export function ChildSettingsScreen({
                     ))}
                     </div>
                   </div>
+                </div>
+              </div>
+            </Card>
+
+            <Card variant="child">
+              <div className="space-y-4 sm:space-y-6">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-gradient-to-br from-[var(--child-blue)] to-[var(--child-yellow)] flex items-center justify-center">
+                    <Languages className="w-5 h-5 sm:w-6 sm:h-6 text-[#1a365d]" />
+                  </div>
+                  <div>
+                    <h3 className="text-[#2d3748] text-lg sm:text-xl">Voice Language</h3>
+                    <p className="text-xs sm:text-sm text-[#64748b]">
+                      Voice journal recordings will be transcribed only using this language.
+                    </p>
+                  </div>
+                </div>
+
+                <div>
+                  <label htmlFor="speech-language" className="block text-[#4a5568] mb-2 text-sm sm:text-base">
+                    Speech-to-text language
+                  </label>
+                  <select
+                    id="speech-language"
+                    value={speechLanguage}
+                    onChange={(event) => {
+                      setSpeechLanguage(event.target.value);
+                      const selected = speechLanguages.find(
+                        (language) => language.code === event.target.value
+                      );
+                      toast.info(`${selected?.label || 'Voice'} selected. Save changes to apply it.`);
+                    }}
+                    disabled={isLoadingProfile || isSavingProfile}
+                    className="w-full px-4 py-3 bg-white rounded-2xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[var(--child-blue)] text-[#2d3748]"
+                  >
+                    {speechLanguages.map((language) => (
+                      <option key={language.code} value={language.code}>
+                        {language.label}
+                      </option>
+                    ))}
+                  </select>
+                  <p className="mt-2 text-xs sm:text-sm text-[#64748b]">
+                    Speak in the selected language when recording. Changing this setting prevents automatic language detection from mixing languages.
+                  </p>
                 </div>
               </div>
             </Card>
