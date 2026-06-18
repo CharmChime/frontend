@@ -70,13 +70,22 @@ async function request<T>(
 ): Promise<T> {
   ensureApiConfigured();
   const isFormData = options.body instanceof FormData;
-  const response = await fetch(`${API_BASE_URL}${path}${buildQuery(params)}`, {
-    ...options,
-    headers: {
-      ...(isFormData ? {} : { "Content-Type": "application/json" }),
-      ...(options.headers || {}),
-    },
-  });
+  const requestUrl = `${API_BASE_URL}${path}${buildQuery(params)}`;
+  let response: Response;
+
+  try {
+    response = await fetch(requestUrl, {
+      ...options,
+      headers: {
+        ...(isFormData ? {} : { "Content-Type": "application/json" }),
+        ...(options.headers || {}),
+      },
+    });
+  } catch {
+    throw new ApiRequestError(
+      `Could not connect to the CharmChime API at ${API_BASE_URL}. Check the Vercel API URL, Render service status, and backend CORS_ORIGIN.`
+    );
+  }
 
   const payload = (await response.json().catch(() => null)) as ApiEnvelope<T> | null;
 
@@ -123,11 +132,19 @@ async function requestAudio(
   userType: UserType = "child"
 ): Promise<Blob> {
   ensureApiConfigured();
-  const response = await fetch(`${API_BASE_URL}${path}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json", ...authHeaders(userType) },
-    body: JSON.stringify(body),
-  });
+  let response: Response;
+
+  try {
+    response = await fetch(`${API_BASE_URL}${path}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...authHeaders(userType) },
+      body: JSON.stringify(body),
+    });
+  } catch {
+    throw new ApiRequestError(
+      `Could not connect to the CharmChime API at ${API_BASE_URL}. Check the Vercel API URL, Render service status, and backend CORS_ORIGIN.`
+    );
+  }
 
   if (!response.ok) {
     const payload = await response.json().catch(() => null);
