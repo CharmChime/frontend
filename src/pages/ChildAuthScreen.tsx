@@ -146,7 +146,7 @@ export function ChildAuthScreen({ onLogin, onRegister, onRequestPinReset, onRese
               <p className="text-[#4a5568]">
                 {isLogin
                   ? 'Enter your details to continue your journey.'
-                  : 'Create your magical journaling space.'}
+                  : 'Create a child profile linked to an existing guardian account.'}
               </p>
             </div>
 
@@ -209,8 +209,8 @@ export function ChildAuthScreen({ onLogin, onRegister, onRequestPinReset, onRese
               {!isLogin && !isResetMode && (
                 <>
                   <Input
-                    label="Parent or guardian email"
-                    placeholder="email@example.com"
+                    label="Registered guardian email"
+                    placeholder="guardian@example.com"
                     type="email"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
@@ -335,7 +335,7 @@ export function ChildAuthScreen({ onLogin, onRegister, onRequestPinReset, onRese
             {!isLogin && (
               <div className="bg-[var(--child-yellow)]/20 border-2 border-[var(--child-yellow)] rounded-[1.5rem] p-4">
                 <p className="text-sm text-[#744210] text-center">
-                  Ask a parent or guardian to help you create your account safely.
+                  One guardian email can link multiple children. Each child must use a unique name and PIN.
                 </p>
               </div>
             )}

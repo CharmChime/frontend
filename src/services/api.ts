@@ -232,6 +232,7 @@ export type OtpUserType = "parent" | "child";
 export type OtpContext = {
   userType: OtpUserType;
   email: string;
+  name?: string;
 };
 
 export type OtpResponse = {

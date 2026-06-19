@@ -71,6 +71,7 @@ const getOtpRequiredContext = (
   return {
     userType: fallback.userType,
     email: destination || fallback.email,
+    name: fallback.name,
   };
 };
 
@@ -230,6 +231,7 @@ export function ScreenNavigation() {
       const context = getOtpRequiredContext(error, {
         userType: 'child',
         email: '',
+        name,
       });
 
       if (context?.email) {
@@ -244,7 +246,7 @@ export function ScreenNavigation() {
 
   const handleChildRegister = async (name: string, email: string, age: string, pin: string) => {
     await api.auth.childSignup({ name, email, age, pin, confirmPin: pin });
-    const context: OtpContext = { userType: 'child', email };
+    const context: OtpContext = { userType: 'child', email, name };
     saveOtpContext(context);
     navigate('/verify-otp', { state: context });
   };
@@ -758,6 +760,7 @@ export function ScreenNavigation() {
             childName={parentChildName}
             childAvatar={parentChildAvatar}
             parentName={parentDisplayName}
+            parentEmail={parent?.email}
             children={linkedChildren}
             selectedChildId={selectedParentChild?.id}
             onSelectChild={setSelectedParentChildId}
