@@ -21,11 +21,12 @@ interface StoryModeScreenProps {
 }
 
 export function StoryModeScreen({ onBack, childName = 'Friend', childAvatar, childId, onNavigate, onLogout }: StoryModeScreenProps) {
-  const [creationMode, setCreationMode] = useState<'journal' | 'prompt'>('prompt');
+  const [creationMode, setCreationMode] = useState<'journal' | 'prompt'>('journal');
   const [selectedTheme, setSelectedTheme] = useState('');
-  const [storyPrompt, setStoryPrompt] = useState('');
   const [selectedEntries, setSelectedEntries] = useState<string[]>([]);
+  const [customPrompt, setCustomPrompt] = useState('');
   const [generatedStory, setGeneratedStory] = useState('');
+  const [generatedStoryId, setGeneratedStoryId] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
@@ -35,6 +36,7 @@ export function StoryModeScreen({ onBack, childName = 'Friend', childAvatar, chi
   const [storyVoiceStatus, setStoryVoiceStatus] = useState<'idle' | 'loading' | 'playing' | 'ready' | 'unavailable'>('idle');
   const storyAudioRef = useRef<HTMLAudioElement | null>(null);
   const storyAudioUrlRef = useRef<string | null>(null);
+  const lastGeneratedPromptRef = useRef('');
   const isReadingStory = storyVoiceStatus === 'loading' || storyVoiceStatus === 'playing';
 
   const handleLogout = () => {
@@ -81,6 +83,25 @@ export function StoryModeScreen({ onBack, childName = 'Friend', childAvatar, chi
     };
   }, []);
 
+  useEffect(() => {
+    if (
+      creationMode === 'prompt' &&
+      generatedStory &&
+      customPrompt.trim() !== lastGeneratedPromptRef.current
+    ) {
+      storyAudioRef.current?.pause();
+      storyAudioRef.current = null;
+      if (storyAudioUrlRef.current) {
+        URL.revokeObjectURL(storyAudioUrlRef.current);
+        storyAudioUrlRef.current = null;
+      }
+      setGeneratedStory('');
+      setGeneratedStoryId('');
+      setStoryVoiceStatus('idle');
+      setActionMessage('');
+    }
+  }, [customPrompt, creationMode, generatedStory]);
+
   const getMoodEmoji = (mood: string) => {
     switch(mood) {
       case 'happy': return '😊';
@@ -92,9 +113,7 @@ export function StoryModeScreen({ onBack, childName = 'Friend', childAvatar, chi
   };
 
   const toggleEntrySelection = (id: string) => {
-    setSelectedEntries(prev => 
-      prev.includes(id) ? prev.filter(entryId => entryId !== id) : [...prev, id]
-    );
+    setSelectedEntries((current) => (current.includes(id) ? [] : [id]));
   };
 
   const handleGenerateStory = async () => {
@@ -114,42 +133,39 @@ export function StoryModeScreen({ onBack, childName = 'Friend', childAvatar, chi
     }
     setStoryVoiceStatus('idle');
     try {
-      let journalId = selectedEntries[0];
-
-      if (creationMode === 'prompt') {
-        const created = await api.journals.create({
-          childId,
-          title: storyPrompt.slice(0, 48),
-          content: storyPrompt,
-          inputType: 'text',
-          source: 'manual',
-        });
-        journalId = created.journal.id;
-      }
-
-      const data = await api.stories.generate({
-        journalId,
-        theme: selectedTheme,
-        length: 'short',
-      });
+      const data = await api.stories.generate(
+        creationMode === 'prompt'
+          ? {
+              childId,
+              prompt: customPrompt.trim(),
+              theme: selectedTheme || 'imagination',
+              length: 'short',
+            }
+          : {
+              journalId: selectedEntries[0],
+              theme: selectedTheme,
+              length: 'short',
+            }
+      );
 
       setGeneratedStory(data.story.content);
+      setGeneratedStoryId(data.story.id);
+      if (creationMode === 'prompt') {
+        lastGeneratedPromptRef.current = customPrompt.trim();
+      }
       toast.success('Your story is ready.');
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Could not generate a story.';
       setError(message);
       toast.error(message);
     } finally {
-      if (creationMode === 'journal' && selectedEntries.length > 0) {
-        setSelectedEntries((current) => current.slice(0, 1));
-      }
       setIsGenerating(false);
     }
   };
 
-  const canGenerate = creationMode === 'prompt' 
-    ? selectedTheme && storyPrompt 
-    : selectedTheme && selectedEntries.length > 0;
+  const canGenerate = creationMode === 'prompt'
+    ? Boolean(customPrompt.trim())
+    : Boolean(selectedTheme && selectedEntries.length === 1);
 
   const handleReadGeneratedStory = async () => {
     if (!generatedStory) return;
@@ -202,15 +218,28 @@ export function StoryModeScreen({ onBack, childName = 'Friend', childAvatar, chi
     toast.success('Story is saved in your memories.');
   };
 
-  const handleContinueStory = () => {
-    setCreationMode('prompt');
-    setStoryPrompt(`${generatedStory}\n\nContinue this story with another magical scene.`);
-    setGeneratedStory('');
+  const handleContinueStory = async () => {
+    if (!generatedStoryId) return;
+
+    setIsGenerating(true);
+    setError('');
     storyAudioRef.current?.pause();
     storyAudioRef.current = null;
     setStoryVoiceStatus('idle');
     setActionMessage('');
-    toast.info('Ready to continue your story.');
+
+    try {
+      const { story } = await api.stories.continue(generatedStoryId);
+      setGeneratedStory(story.content);
+      setActionMessage('A new scene was added to your story.');
+      toast.success('Your story continues!');
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Could not continue this story.';
+      setError(message);
+      toast.error(message);
+    } finally {
+      setIsGenerating(false);
+    }
   };
 
   const handleNewStory = () => {
@@ -222,6 +251,11 @@ export function StoryModeScreen({ onBack, childName = 'Friend', childAvatar, chi
     }
     setStoryVoiceStatus('idle');
     setGeneratedStory('');
+    setGeneratedStoryId('');
+    setSelectedEntries([]);
+    setSelectedTheme('');
+    setCustomPrompt('');
+    lastGeneratedPromptRef.current = '';
     toast.info('Started a new story.');
   };
 
@@ -288,62 +322,41 @@ export function StoryModeScreen({ onBack, childName = 'Friend', childAvatar, chi
               <div className="flex-1 space-y-3">
                 <h3 className="text-[#2d3748] text-lg sm:text-xl">Let's Create Magic Together! 🪄</h3>
                 <p className="text-[#4a5568] text-sm sm:text-base">
-                  I can help you create amazing stories in two ways! You can use your saved journal entries to inspire a story, 
-                  or tell me your own story idea. Pick a theme, and I'll weave a magical tale just for you!
+                  Start with a saved journal memory or write your own story idea, then choose a theme.
                 </p>
               </div>
             </div>
           </Card>
 
-          {/* Creation Mode Selection */}
           <Card variant="child">
             <div className="space-y-4">
-              <h3 className="text-[#2d3748] text-lg sm:text-xl">How would you like to create your story?</h3>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+              <h3 className="text-[#2d3748] text-lg sm:text-xl">How should we begin?</h3>
+              <div className="grid gap-3 sm:grid-cols-2">
                 <button
+                  type="button"
                   onClick={() => setCreationMode('journal')}
-                  className={`
-                    p-4 sm:p-6 rounded-[1.5rem] sm:rounded-[2rem]
-                    transition-all duration-200
-                    flex flex-col items-center gap-3
-                    ${creationMode === 'journal'
-                      ? 'bg-[var(--child-blue)] shadow-[0_8px_24px_rgba(0,0,0,0.1)] scale-105'
+                  className={`rounded-[1.5rem] p-4 text-left transition-all ${
+                    creationMode === 'journal'
+                      ? 'bg-[var(--child-blue)] shadow-lg'
                       : 'bg-gray-50 hover:bg-gray-100'
-                    }
-                  `}
+                  }`}
                 >
-                  <BookOpen className={`w-8 h-8 sm:w-12 sm:h-12 ${creationMode === 'journal' ? 'text-[#1a365d]' : 'text-[#64748b]'}`} />
-                  <div className="text-center">
-                    <h4 className={`mb-1 text-base sm:text-lg ${creationMode === 'journal' ? 'text-[#1a365d]' : 'text-[#2d3748]'}`}>
-                      From My Journal 📖
-                    </h4>
-                    <p className={`text-xs sm:text-sm ${creationMode === 'journal' ? 'text-[#2d5f7e]' : 'text-[#64748b]'}`}>
-                      Turn my journal entries into a story
-                    </p>
-                  </div>
+                  <BookOpen className="mb-2 h-6 w-6 text-[#1a365d]" />
+                  <span className="block font-semibold text-[#1a365d]">Use a journal memory</span>
+                  <span className="text-sm text-[#475569]">Turn one saved entry into a story.</span>
                 </button>
-
                 <button
+                  type="button"
                   onClick={() => setCreationMode('prompt')}
-                  className={`
-                    p-4 sm:p-6 rounded-[1.5rem] sm:rounded-[2rem]
-                    transition-all duration-200
-                    flex flex-col items-center gap-3
-                    ${creationMode === 'prompt'
-                      ? 'bg-[var(--child-lavender)] shadow-[0_8px_24px_rgba(0,0,0,0.1)] scale-105'
+                  className={`rounded-[1.5rem] p-4 text-left transition-all ${
+                    creationMode === 'prompt'
+                      ? 'bg-[var(--child-lavender)] shadow-lg'
                       : 'bg-gray-50 hover:bg-gray-100'
-                    }
-                  `}
+                  }`}
                 >
-                  <Sparkles className={`w-8 h-8 sm:w-12 sm:h-12 ${creationMode === 'prompt' ? 'text-[#5b21b6]' : 'text-[#64748b]'}`} />
-                  <div className="text-center">
-                    <h4 className={`mb-1 text-base sm:text-lg ${creationMode === 'prompt' ? 'text-[#5b21b6]' : 'text-[#2d3748]'}`}>
-                      Custom Idea ✍️
-                    </h4>
-                    <p className={`text-xs sm:text-sm ${creationMode === 'prompt' ? 'text-[#7c3aed]' : 'text-[#64748b]'}`}>
-                      Create a story from my own idea
-                    </p>
-                  </div>
+                  <Wand2 className="mb-2 h-6 w-6 text-[#5b21b6]" />
+                  <span className="block font-semibold text-[#5b21b6]">Write a custom idea</span>
+                  <span className="text-sm text-[#475569]">Describe the characters or adventure you want.</span>
                 </button>
               </div>
             </div>
@@ -382,10 +395,10 @@ export function StoryModeScreen({ onBack, childName = 'Friend', childAvatar, chi
               <div className="space-y-4">
                 <div className="flex items-center justify-between">
                   <h3 className="text-[#2d3748] text-lg sm:text-xl">Select Journal Entries 📚</h3>
-                  <Badge variant="child-blue">{selectedEntries.length} selected</Badge>
+                  <Badge variant="child-blue">{selectedEntries.length ? '1 selected' : 'None selected'}</Badge>
                 </div>
                 <p className="text-[#64748b] text-sm sm:text-base">
-                  Pick one or more journal entries. I'll use them to create a magical story!
+                  Pick one journal entry. I'll use it to create a magical story!
                 </p>
                 <div className="space-y-2 sm:space-y-3">
                   {journalEntries.map((entry) => (
@@ -442,46 +455,24 @@ export function StoryModeScreen({ onBack, childName = 'Friend', childAvatar, chi
             </Card>
           )}
 
-          {/* Custom Prompt Input */}
           {creationMode === 'prompt' && (
             <Card variant="child">
-              <div className="space-y-4">
-                <div className="flex items-center gap-2">
-                  <Sparkles className="w-5 h-5 text-[var(--child-lavender)]" fill="currentColor" />
-                  <h3 className="text-[#2d3748] text-lg sm:text-xl">Tell me about your story idea</h3>
+              <div className="space-y-3">
+                <div className="flex items-center justify-between gap-3">
+                  <h3 className="text-[#2d3748] text-lg sm:text-xl">Your Custom Story Idea ✍️</h3>
+                  <Badge variant="child-lavender">{customPrompt.trim().length} characters</Badge>
                 </div>
+                <p className="text-sm text-[#64748b]">
+                  You can edit this idea at any time. If you change it after generating, the old story will be cleared.
+                </p>
                 <textarea
-                  value={storyPrompt}
-                  onChange={(e) => setStoryPrompt(e.target.value)}
-                  placeholder="Example: I want a story about a brave kid who discovers a magical garden where animals can talk..."
-                  rows={4}
-                  className="w-full px-4 sm:px-6 py-3 sm:py-4 rounded-[1.5rem] border-2 border-[var(--child-lavender)] focus:border-[var(--child-lavender)]/80 focus:outline-none focus:ring-4 focus:ring-[var(--child-lavender)]/20 bg-white transition-all resize-none text-sm sm:text-base"
+                  value={customPrompt}
+                  onChange={(event) => setCustomPrompt(event.target.value)}
+                  placeholder="For example: A shy moon dragon finds a tiny lost star and learns how brave it can be..."
+                  rows={6}
+                  maxLength={1200}
+                  className="w-full resize-y rounded-[1.5rem] border-2 border-[#ddd6fe] bg-white p-4 text-[#2d3748] outline-none transition focus:border-[#a78bfa] focus:ring-2 focus:ring-[#ddd6fe]"
                 />
-                
-                {/* Story Prompts/Ideas */}
-                <div className="space-y-3">
-                  <h4 className="text-[#2d3748] text-sm sm:text-base">Need inspiration? Try these! 💡</h4>
-                  <div className="space-y-2">
-                    <button 
-                      onClick={() => setStoryPrompt("A kid who can talk to books and goes on library adventures")}
-                      className="w-full text-left px-3 sm:px-4 py-2 sm:py-3 rounded-full bg-white hover:bg-[var(--child-mint)]/20 transition-colors text-[#4a5568] text-xs sm:text-sm"
-                    >
-                      "A kid who can talk to books and goes on library adventures"
-                    </button>
-                    <button 
-                      onClick={() => setStoryPrompt("A magical pet that grants wishes but in funny ways")}
-                      className="w-full text-left px-3 sm:px-4 py-2 sm:py-3 rounded-full bg-white hover:bg-[var(--child-mint)]/20 transition-colors text-[#4a5568] text-xs sm:text-sm"
-                    >
-                      "A magical pet that grants wishes but in funny ways"
-                    </button>
-                    <button 
-                      onClick={() => setStoryPrompt("A superhero who gets their powers from being kind")}
-                      className="w-full text-left px-3 sm:px-4 py-2 sm:py-3 rounded-full bg-white hover:bg-[var(--child-mint)]/20 transition-colors text-[#4a5568] text-xs sm:text-sm"
-                    >
-                      "A superhero who gets their powers from being kind"
-                    </button>
-                  </div>
-                </div>
               </div>
             </Card>
           )}
@@ -516,9 +507,7 @@ export function StoryModeScreen({ onBack, childName = 'Friend', childAvatar, chi
                 </div>
                 <h3 className="text-[#2d3748] text-lg sm:text-xl">Sprinkling magic dust... ✨</h3>
                 <p className="text-[#4a5568] text-sm sm:text-base">
-                  {creationMode === 'journal' 
-                    ? 'Weaving your memories into a magical tale!' 
-                    : 'Creating your personalized story!'}
+                  Weaving your memory into a magical tale!
                 </p>
               </div>
             </Card>
@@ -533,11 +522,9 @@ export function StoryModeScreen({ onBack, childName = 'Friend', childAvatar, chi
                     <Badge variant="child-lavender" icon={<Star className="w-4 h-4" fill="currentColor" />}>
                       {selectedTheme}
                     </Badge>
-                    {creationMode === 'journal' && (
-                      <Badge variant="child-blue" icon={<BookOpen className="w-4 h-4" />}>
-                        From {selectedEntries.length} {selectedEntries.length === 1 ? 'Entry' : 'Entries'}
-                      </Badge>
-                    )}
+                    <Badge variant="child-blue" icon={<BookOpen className="w-4 h-4" />}>
+                      {creationMode === 'prompt' ? 'Custom Idea' : 'From Journal'}
+                    </Badge>
                     <h3 className="text-[#2d3748] text-lg sm:text-xl">Your Magical Story</h3>
                   </div>
                   <IconButton variant="child-blue" size="small" onClick={handleGenerateStory}>
@@ -573,8 +560,14 @@ export function StoryModeScreen({ onBack, childName = 'Friend', childAvatar, chi
                       ? 'Replay Audio'
                       : 'Listen'}
                   </Button>
-                  <Button variant="child-mint" icon={<Sparkles className="w-5 h-5" fill="currentColor" />} size="medium" onClick={handleContinueStory}>
-                    Continue Story
+                  <Button
+                    variant="child-mint"
+                    icon={<Sparkles className="w-5 h-5" fill="currentColor" />}
+                    size="medium"
+                    onClick={handleContinueStory}
+                    disabled={isGenerating || !generatedStoryId}
+                  >
+                    {isGenerating ? 'Continuing...' : 'Continue Story'}
                   </Button>
                   <Button variant="child-yellow" icon={<Save className="w-5 h-5" />} size="medium" onClick={handleSaveStory}>
                     Save to Memories

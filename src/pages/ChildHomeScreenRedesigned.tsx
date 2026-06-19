@@ -7,7 +7,7 @@ import { ChildSidebar } from '../components/ChildSidebar';
 import { ChildAvatar } from '../components/ChildAvatar';
 import { MobileMenuButton } from '../components/MobileMenuButton';
 import { Sparkles, PenLine, BookOpen, Calendar, Trophy, Home, Wand2, Smile, Star, Heart, RefreshCw } from 'lucide-react';
-import { api, type Journal, type MoodAnalysis, type Story } from '../services/api';
+import { api, type AchievementItem, type AchievementProgress, type Journal, type MoodAnalysis, type Story } from '../services/api';
 import { formatShortDate } from '../services/journalAdapters';
 import { toast } from 'sonner';
 import { ChildPageLoader } from '../components/PageLoaders';
@@ -21,6 +21,8 @@ interface ChildHomeScreenRedesignedProps {
   onStoryMode: () => void;
   onCalendar?: () => void;
   onAchievements?: () => void;
+  onOpenJournal?: (journalId: string) => void;
+  onOpenStory?: (storyId: string) => void;
   onSettings?: () => void;
   onLogout: () => void;
 }
@@ -34,16 +36,19 @@ export function ChildHomeScreenRedesigned({
   onStoryMode,
   onCalendar,
   onAchievements,
+  onOpenJournal,
+  onOpenStory,
   onSettings,
   onLogout
 }: ChildHomeScreenRedesignedProps) {
   const [activeTab, setActiveTab] = useState('home');
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  const [recentEntries, setRecentEntries] = useState<Journal[]>([]);
   const [journals, setJournals] = useState<Journal[]>([]);
   const [stories, setStories] = useState<Story[]>([]);
   const [moodAnalyses, setMoodAnalyses] = useState<MoodAnalysis[]>([]);
+  const [achievementItems, setAchievementItems] = useState<AchievementItem[]>([]);
+  const [achievementProgress, setAchievementProgress] = useState<AchievementProgress | null>(null);
   const [isLoadingDashboard, setIsLoadingDashboard] = useState(false);
   const [dashboardError, setDashboardError] = useState('');
 
@@ -83,10 +88,11 @@ export function ChildHomeScreenRedesigned({
 
   useEffect(() => {
     if (!childId) {
-      setRecentEntries([]);
       setJournals([]);
       setStories([]);
       setMoodAnalyses([]);
+      setAchievementItems([]);
+      setAchievementProgress(null);
       setIsLoadingDashboard(false);
       setDashboardError('');
       return;
@@ -100,24 +106,32 @@ export function ChildHomeScreenRedesigned({
       api.journals.list({ childId }),
       api.stories.list({ childId }),
       api.mood.byChild(childId),
+      api.achievements.me(),
     ])
-      .then(([journalData, storyData, moodData]) => {
+      .then(([journalData, storyData, moodData, achievementData]) => {
         if (!isMounted) return;
         const sortedJournals = [...(journalData.journals || [])].sort(
           (first, second) => new Date(second.createdAt).getTime() - new Date(first.createdAt).getTime()
         );
 
         setJournals(sortedJournals);
-        setRecentEntries(sortedJournals.slice(0, 3));
-        setStories(storyData.stories || []);
+        setStories(
+          [...(storyData.stories || [])].sort(
+            (first, second) =>
+              new Date(second.createdAt).getTime() - new Date(first.createdAt).getTime()
+          )
+        );
         setMoodAnalyses(moodData.moodAnalyses || moodData.moods || moodData.analyses || []);
+        setAchievementItems(achievementData.achievements || []);
+        setAchievementProgress(achievementData.progress || null);
       })
       .catch((error) => {
         if (!isMounted) return;
         setJournals([]);
-        setRecentEntries([]);
         setStories([]);
         setMoodAnalyses([]);
+        setAchievementItems([]);
+        setAchievementProgress(null);
         const message = error instanceof Error ? error.message : 'Could not load your child dashboard.';
         setDashboardError(message);
         toast.error(message);
@@ -143,6 +157,44 @@ export function ChildHomeScreenRedesigned({
   const journalDayKeys = useMemo(
     () => Array.from(new Set(journals.map((journal) => toDayKey(journal.createdAt)).filter(Boolean))).sort(),
     [journals]
+  );
+
+  const recentActivities = useMemo(
+    () =>
+      [
+        ...journals.map((journal) => ({
+          id: journal.id,
+          type: 'journal' as const,
+          title: journal.title,
+          createdAt: journal.createdAt,
+          mood:
+            journal.moodStatus && journal.moodStatus !== 'pending'
+              ? journal.moodStatus
+              : 'thoughtful',
+        })),
+        ...stories.map((story) => ({
+          id: story.id,
+          type: 'story' as const,
+          title: story.title,
+          createdAt: story.createdAt,
+          mood: '',
+        })),
+        ...achievementItems
+          .filter((achievement) => achievement.unlocked && achievement.unlockedAt)
+          .map((achievement) => ({
+            id: achievement.id,
+            type: 'achievement' as const,
+            title: achievement.title,
+            createdAt: achievement.unlockedAt as string,
+            mood: '',
+          })),
+      ]
+        .sort(
+          (first, second) =>
+            new Date(second.createdAt).getTime() - new Date(first.createdAt).getTime()
+        )
+        .slice(0, 5),
+    [achievementItems, journals, stories]
   );
 
   const weeklyStreakDays = useMemo(() => {
@@ -199,30 +251,30 @@ export function ChildHomeScreenRedesigned({
     [lastWeekMoodCounts]
   );
 
-  const achievementPreview = useMemo(() => {
-    const previews = [
-      {
-        icon: '🏆',
-        label: '7-Day Streak',
-        unlocked: currentStreak >= 7,
-        progress: `${Math.min(currentStreak, 7)}/7 days`,
-      },
-      {
-        icon: '⭐',
-        label: 'First Story',
-        unlocked: stories.length >= 1,
-        progress: `${stories.length}/1 story`,
-      },
-      {
-        icon: '💖',
-        label: 'Mood Master',
-        unlocked: new Set(moodAnalyses.map((analysis) => analysis.mood || analysis.emotion || analysis.label).filter(Boolean)).size >= 5,
-        progress: `${new Set(moodAnalyses.map((analysis) => analysis.mood || analysis.emotion || analysis.label).filter(Boolean)).size}/5 moods`,
-      },
-    ];
+  const backendAchievementPreview = useMemo(
+    () =>
+      [...achievementItems]
+        .sort((first, second) =>
+          Number(second.unlocked) - Number(first.unlocked) ||
+          second.progress - first.progress
+        )
+        .slice(0, 3),
+    [achievementItems]
+  );
 
-    return previews;
-  }, [currentStreak, moodAnalyses, stories.length]);
+  const unlockedAchievementCount =
+    achievementProgress?.unlockedAchievementIds?.length ||
+    achievementItems.filter((achievement) => achievement.unlocked).length;
+
+  const openRecentActivity = (activity: typeof recentActivities[number]) => {
+    if (activity.type === 'journal') {
+      onOpenJournal?.(activity.id);
+    } else if (activity.type === 'story') {
+      onOpenStory?.(activity.id);
+    } else {
+      onAchievements?.();
+    }
+  };
 
   const getMoodIcon = (mood: string) => {
     switch(mood) {
@@ -414,36 +466,60 @@ export function ChildHomeScreenRedesigned({
 
           {/* Two Column Layout */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            {/* Recent Entries - Takes 2 columns */}
+            {/* Recent Activity - Takes 2 columns */}
             <div className="lg:col-span-2 space-y-4">
-              <h3 className="text-[#2d3748]">Recent Memories ✨</h3>
+              <h3 className="text-[#2d3748]">Recent Activities ✨</h3>
               <div className="space-y-3">
-                {recentEntries.map(entry => {
-                  const mood = entry.moodStatus && entry.moodStatus !== 'pending' ? entry.moodStatus : 'thoughtful';
-
-                  return (
-                  <Card key={entry.id} variant="child" className="cursor-pointer hover:shadow-[0_8px_24px_rgba(0,0,0,0.1)] transition-shadow">
+                {recentActivities.map((activity) => (
+                  <Card
+                    key={`${activity.type}-${activity.id}`}
+                    variant="child"
+                    className="cursor-pointer hover:shadow-[0_8px_24px_rgba(0,0,0,0.1)] transition-shadow"
+                    onClick={() => openRecentActivity(activity)}
+                  >
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-4 flex-1">
-                        <Badge variant={getMoodColor(mood) as any} icon={getMoodIcon(mood)}>
-                          {mood}
+                        <Badge
+                          variant={activity.type === 'journal' ? getMoodColor(activity.mood) as any : 'child-lavender'}
+                          icon={
+                            activity.type === 'journal'
+                              ? getMoodIcon(activity.mood)
+                              : activity.type === 'achievement'
+                              ? <Trophy className="h-4 w-4" />
+                              : <BookOpen className="h-4 w-4" />
+                          }
+                        >
+                          {activity.type === 'journal' ? 'Journal' : activity.type === 'story' ? 'Story' : 'Achievement'}
                         </Badge>
                         <div className="flex-1 min-w-0">
-                          <h4 className="text-[#2d3748] truncate">{entry.title}</h4>
-                          <p className="text-sm text-[#64748b]">{formatShortDate(entry.createdAt)}</p>
+                          <h4 className="text-[#2d3748] truncate">{activity.title}</h4>
+                          <p className="text-sm text-[#64748b]">
+                            {formatShortDate(activity.createdAt)}
+                            {activity.type === 'journal'
+                              ? ` · ${activity.mood}`
+                              : activity.type === 'story'
+                              ? ' · Generated story'
+                              : ' · Badge unlocked'}
+                          </p>
                         </div>
                       </div>
-                      <Button variant="child-blue" size="small" onClick={onViewMemories}>
-                        Read
+                      <Button
+                        variant={activity.type === 'journal' ? 'child-blue' : 'child-lavender'}
+                        size="small"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          openRecentActivity(activity);
+                        }}
+                      >
+                        Open
                       </Button>
                     </div>
                   </Card>
-                  );
-                })}
-                {recentEntries.length === 0 && (
+                ))}
+                {recentActivities.length === 0 && (
                   <Card variant="child">
                     <p className="text-center text-sm text-[#64748b]">
-                      No memories yet. Your first saved journal will appear here.
+                      No activities yet. Your latest journals and stories will appear here.
                     </p>
                   </Card>
                 )}
@@ -479,17 +555,39 @@ export function ChildHomeScreenRedesigned({
                     <Trophy className="w-5 h-5 text-[var(--child-yellow)]" />
                     <h4 className="text-[#2d3748]">Achievements</h4>
                   </div>
+                  <div className="grid grid-cols-3 gap-2 rounded-2xl bg-[var(--child-yellow)]/15 p-3 text-center">
+                    <div>
+                      <p className="text-lg font-semibold text-[#744210]">{unlockedAchievementCount}</p>
+                      <p className="text-[10px] text-[#64748b]">Unlocked</p>
+                    </div>
+                    <div>
+                      <p className="text-lg font-semibold text-[#1a365d]">{achievementProgress?.totalPoints || 0}</p>
+                      <p className="text-[10px] text-[#64748b]">Points</p>
+                    </div>
+                    <div>
+                      <p className="text-lg font-semibold text-[#065f46]">{achievementProgress?.currentJournalingStreak || 0}</p>
+                      <p className="text-[10px] text-[#64748b]">Day streak</p>
+                    </div>
+                  </div>
                   <div className="space-y-2">
-                    {achievementPreview.map((achievement) => (
-                      <div key={achievement.label} className="flex items-center gap-2 text-sm">
-                        <span className="text-2xl">{achievement.icon}</span>
+                    {backendAchievementPreview.map((achievement) => (
+                      <div key={achievement.id} className="flex items-center gap-2 text-sm">
+                        <span className="text-xl">{achievement.unlocked ? '🏆' : '🎯'}</span>
                         <span className={achievement.unlocked ? 'text-[#2d3748]' : 'text-[#64748b]'}>
-                          {achievement.label}
+                          {achievement.title}
                         </span>
-                        <span className="ml-auto text-xs text-[#94a3b8]">{achievement.progress}</span>
+                        <span className="ml-auto text-xs text-[#94a3b8]">
+                          {achievement.unlocked ? 'Done' : `${achievement.currentValue}/${achievement.target}`}
+                        </span>
                       </div>
                     ))}
+                    {backendAchievementPreview.length === 0 && (
+                      <p className="text-sm text-[#64748b]">Start journaling to earn your first badge.</p>
+                    )}
                   </div>
+                  <Button variant="child-yellow" size="small" className="w-full" onClick={onAchievements}>
+                    View all achievements
+                  </Button>
                 </div>
               </Card>
             </div>

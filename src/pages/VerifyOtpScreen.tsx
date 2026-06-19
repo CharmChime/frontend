@@ -23,7 +23,11 @@ const getStoredOtpContext = (): OtpContext | null => {
   try {
     const context = JSON.parse(saved) as OtpContext;
 
-    if (!context.userType || !context.email) {
+    if (
+      !context.userType ||
+      !context.email ||
+      (context.userType === 'child' && !context.name)
+    ) {
       sessionStorage.removeItem(OTP_CONTEXT_STORAGE_KEY);
       return null;
     }
@@ -47,7 +51,12 @@ export function VerifyOtpScreen({ onBack, onVerified }: VerifyOtpScreenProps) {
   const location = useLocation();
   const [context] = useState<OtpContext | null>(() => {
     const stateContext = location.state as OtpContext | null;
-    return stateContext?.userType && stateContext.email ? stateContext : getStoredOtpContext();
+    const hasRequiredState =
+      stateContext?.userType &&
+      stateContext.email &&
+      (stateContext.userType === 'parent' || stateContext.name);
+
+    return hasRequiredState ? stateContext : getStoredOtpContext();
   });
   const [otp, setOtp] = useState('');
   const [error, setError] = useState('');

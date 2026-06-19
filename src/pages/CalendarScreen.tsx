@@ -80,7 +80,18 @@ export function CalendarScreen({ onBack, childName = 'Friend', childAvatar, chil
     }, {});
   }, [journals, currentMonth]);
 
-  const entriesThisMonth = Object.keys(journalEntries).length;
+  const entriesThisMonth = useMemo(
+    () =>
+      journals.filter((journal) => {
+        const date = new Date(journal.createdAt);
+        return (
+          !Number.isNaN(date.getTime()) &&
+          date.getMonth() === currentMonth.getMonth() &&
+          date.getFullYear() === currentMonth.getFullYear()
+        );
+      }).length,
+    [journals, currentMonth]
+  );
   const totalEntries = journals.length;
   const activeDays = new Set(journals.map((journal) => new Date(journal.createdAt).toDateString())).size;
 

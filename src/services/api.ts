@@ -1,9 +1,29 @@
 const configuredApiBaseUrl = String(import.meta.env.VITE_API_BASE_URL || "").trim();
 
-const API_BASE_URL = (
+const normalizeApiBaseUrl = (value: string) => {
+  const normalized = value.replace(/\/+$/, "");
+
+  if (!normalized) {
+    return "";
+  }
+
+  try {
+    const url = new URL(normalized);
+
+    if (!url.pathname || url.pathname === "/") {
+      url.pathname = "/api";
+    }
+
+    return url.toString().replace(/\/+$/, "");
+  } catch {
+    return normalized;
+  }
+};
+
+const API_BASE_URL = normalizeApiBaseUrl(
   configuredApiBaseUrl ||
   (import.meta.env.DEV ? "http://localhost:5000/api" : "")
-).replace(/\/+$/, "");
+);
 
 const ensureApiConfigured = () => {
   if (!API_BASE_URL) {
@@ -212,6 +232,7 @@ export type OtpUserType = "parent" | "child";
 export type OtpContext = {
   userType: OtpUserType;
   email: string;
+  name?: string;
 };
 
 export type OtpResponse = {
@@ -258,11 +279,15 @@ export type JournalFeedback = {
 export type Story = {
   id: string;
   childId: string;
-  journalId: string;
+  journalId?: string | null;
   title: string;
   content: string;
+  moral?: string;
   theme?: string;
   length?: string;
+  model?: string;
+  provider?: string;
+  isDeleted?: boolean;
   createdAt: string;
   updatedAt?: string;
 };
@@ -484,7 +509,11 @@ export const api = {
       requestAudio("/v1/voice/story-tts", body),
     feedbackTts: (body: { text: string; voiceId?: string }) =>
       requestAudio("/v1/voice/feedback-tts", body),
-    funVoice: (body: { text: string; voiceStyle: "normal" | "fun" | "story" }) =>
+    funVoice: (body: {
+      text: string;
+      voiceStyle: "normal" | "fun" | "story";
+      character: "cheerful" | "calm" | "storyteller" | "robot" | "pirate" | "fairy";
+    }) =>
       requestAudio("/v1/voice/fun-voice", body),
   },
   stories: {
@@ -494,11 +523,31 @@ export const api = {
         { headers: authHeaders("child") },
         params
       ),
-    generate: (body: { journalId: string; theme?: string; length?: "short" | "medium" }) =>
+    generate: (body: {
+      journalId?: string;
+      childId?: string;
+      prompt?: string;
+      theme?: string;
+      length?: "short" | "medium";
+    }) =>
       request<{ story: Story }>("/v1/stories/generate", {
         method: "POST",
         headers: authHeaders("child"),
         body: JSON.stringify(body),
+      }),
+    get: (storyId: string) =>
+      request<{ story: Story }>(`/v1/stories/${storyId}`, {
+        headers: authHeaders("child"),
+      }),
+    continue: (storyId: string) =>
+      request<{ story: Story }>(`/v1/stories/${storyId}/continue`, {
+        method: "POST",
+        headers: authHeaders("child"),
+      }),
+    remove: (storyId: string) =>
+      request<{ story: Story }>(`/v1/stories/${storyId}`, {
+        method: "DELETE",
+        headers: authHeaders("child"),
       }),
   },
   dashboard: {
