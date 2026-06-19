@@ -1,9 +1,29 @@
 const configuredApiBaseUrl = String(import.meta.env.VITE_API_BASE_URL || "").trim();
 
-const API_BASE_URL = (
+const normalizeApiBaseUrl = (value: string) => {
+  const normalized = value.replace(/\/+$/, "");
+
+  if (!normalized) {
+    return "";
+  }
+
+  try {
+    const url = new URL(normalized);
+
+    if (!url.pathname || url.pathname === "/") {
+      url.pathname = "/api";
+    }
+
+    return url.toString().replace(/\/+$/, "");
+  } catch {
+    return normalized;
+  }
+};
+
+const API_BASE_URL = normalizeApiBaseUrl(
   configuredApiBaseUrl ||
   (import.meta.env.DEV ? "http://localhost:5000/api" : "")
-).replace(/\/+$/, "");
+);
 
 const ensureApiConfigured = () => {
   if (!API_BASE_URL) {
