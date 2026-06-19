@@ -154,7 +154,7 @@ export function IntroLandingPage({ onGetStarted }: IntroLandingPageProps) {
 
             <div className="relative">
               <div className="inline-block px-4 sm:px-6 py-2 sm:py-3 bg-gradient-to-r from-[var(--child-blue)]/10 to-[var(--child-mint)]/10 rounded-full mb-4 sm:mb-6">
-                <p className="text-sm sm:text-base text-[#2d3748]">✨ AI-Powered Journaling Platform for Children Aged 6-18</p>
+                <p className="text-sm sm:text-base text-[#2d3748]">✨ AI-Powered Journaling Platform for Children Aged 8-16</p>
               </div>
               
               <h1 className="text-4xl sm:text-5xl lg:text-7xl text-[#1a365d] mb-4 sm:mb-6 px-4">

@@ -133,8 +133,8 @@ export function ChildSettingsScreen({
       return;
     }
 
-    if (!Number.isInteger(parsedAge) || parsedAge <= 0) {
-      setSettingsError('Age must be a positive whole number.');
+    if (!Number.isInteger(parsedAge) || parsedAge < 8 || parsedAge > 16) {
+      setSettingsError('Child age must be between 8 and 16 years.');
       return;
     }
 
@@ -267,7 +267,8 @@ export function ChildSettingsScreen({
                     <label className="block text-[#4a5568] mb-2 text-sm sm:text-base">Age</label>
                     <input
                       type="number"
-                      min="1"
+                      min="8"
+                      max="16"
                       value={age}
                       onChange={(event) => setAge(event.target.value)}
                       disabled={isLoadingProfile || isSavingProfile}
@@ -318,16 +319,16 @@ export function ChildSettingsScreen({
                     <Languages className="w-5 h-5 sm:w-6 sm:h-6 text-[#1a365d]" />
                   </div>
                   <div>
-                    <h3 className="text-[#2d3748] text-lg sm:text-xl">Voice Language</h3>
-                    <p className="text-xs sm:text-sm text-[#64748b]">
-                      Voice journal recordings will be transcribed only using this language.
+                      <h3 className="text-[#2d3748] text-lg sm:text-xl">Voice Language</h3>
+                      <p className="text-xs sm:text-sm text-[#64748b]">
+                        Journal recording and read-aloud voices use this language.
                     </p>
                   </div>
                 </div>
 
                 <div>
                   <label htmlFor="speech-language" className="block text-[#4a5568] mb-2 text-sm sm:text-base">
-                    Speech-to-text language
+                    Speech language
                   </label>
                   <select
                     id="speech-language"
@@ -349,7 +350,7 @@ export function ChildSettingsScreen({
                     ))}
                   </select>
                   <p className="mt-2 text-xs sm:text-sm text-[#64748b]">
-                    Speak in the selected language when recording. Changing this setting prevents automatic language detection from mixing languages.
+                    Use the selected language when recording and when listening to journals, stories, and feedback.
                   </p>
                 </div>
               </div>

@@ -8,7 +8,7 @@ import { MobileMenuButton } from '../components/MobileMenuButton';
 import { LogoutConfirmation } from '../components/LogoutConfirmation';
 import { ChildPageLoader } from '../components/PageLoaders';
 import { ArrowLeft, Volume2, VolumeX, Star, Share2, Trash2, Edit, Calendar, Heart, Sparkles, Wand2, RefreshCw, RotateCcw } from 'lucide-react';
-import { api } from '../services/api';
+import { api, type Story } from '../services/api';
 import {
   formatConfidence,
   formatDate,
@@ -55,6 +55,8 @@ export function JournalDetailScreen({
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
   const [actionMessage, setActionMessage] = useState('');
+  const [generatedStory, setGeneratedStory] = useState<Story | null>(null);
+  const [isGeneratingStory, setIsGeneratingStory] = useState(false);
   const [entryVoiceStatus, setEntryVoiceStatus] = useState<'idle' | 'loading' | 'playing' | 'ready' | 'unavailable'>('idle');
   const [feedbackVoiceStatus, setFeedbackVoiceStatus] = useState<'idle' | 'loading' | 'playing' | 'ready' | 'unavailable'>('idle');
   const entryAudioRef = useRef<HTMLAudioElement | null>(null);
@@ -214,6 +216,7 @@ export function JournalDetailScreen({
       const audioBlob = await api.voice.funVoice({
         text: htmlToText(entry.content),
         voiceStyle: getVoiceStyle(voiceId),
+        character: voiceId as 'cheerful' | 'calm' | 'storyteller' | 'robot' | 'pirate' | 'fairy',
       });
       const audioUrl = URL.createObjectURL(audioBlob);
       const audio = new Audio(audioUrl);
@@ -361,8 +364,23 @@ export function JournalDetailScreen({
     }
   };
 
-  const handleCreateStory = () => {
-    onNavigate?.('story-mode');
+  const handleCreateStory = async () => {
+    setIsGeneratingStory(true);
+    setActionMessage('');
+
+    try {
+      const { story } = await api.stories.generate({
+        journalId: entry.id,
+        theme: entry.mood || 'imagination',
+        length: 'short',
+      });
+      setGeneratedStory(story);
+      setActionMessage('Your story was generated and saved.');
+    } catch (err) {
+      setActionMessage(err instanceof Error ? err.message : 'Could not generate a story.');
+    } finally {
+      setIsGeneratingStory(false);
+    }
   };
 
   if (isLoading || error || !entry) {
@@ -451,6 +469,22 @@ export function JournalDetailScreen({
                 </div>
               </div>
               <div className="flex flex-wrap gap-2">
+                <IconButton
+                  variant="child-lavender"
+                  size="medium"
+                  onClick={() => handlePlayVoice(selectedVoice || 'cheerful')}
+                  disabled={entryVoiceStatus === 'loading' || !htmlToText(entry.content).trim()}
+                >
+                  {entryVoiceStatus === 'loading' ? (
+                    <RefreshCw className="w-5 h-5 animate-spin" />
+                  ) : entryVoiceStatus === 'playing' ? (
+                    <VolumeX className="w-5 h-5" />
+                  ) : entryVoiceStatus === 'ready' ? (
+                    <RotateCcw className="w-5 h-5" />
+                  ) : (
+                    <Volume2 className="w-5 h-5" />
+                  )}
+                </IconButton>
                 <IconButton 
                   variant={isFavorite ? "child-yellow" : "child-blue"}
                   size="medium"
@@ -689,8 +723,9 @@ export function JournalDetailScreen({
                   icon={<Wand2 className="w-5 h-5" />}
                   className="w-full"
                   onClick={handleCreateStory}
+                  disabled={isGeneratingStory}
                 >
-                  Turn into a Story
+                  {isGeneratingStory ? 'Creating Story...' : generatedStory ? 'Generate Story Again' : 'Turn into a Story'}
                 </Button>
                 <Button 
                   variant="child-blue" 
@@ -725,6 +760,20 @@ export function JournalDetailScreen({
               )}
             </div>
           </Card>
+
+          {generatedStory && (
+            <Card variant="child" className="bg-gradient-to-br from-white to-[var(--child-lavender)]/20">
+              <div className="space-y-4">
+                <div className="flex items-center gap-2">
+                  <Sparkles className="h-5 w-5 text-[#7c3aed]" fill="currentColor" />
+                  <h3 className="text-xl text-[#2d3748]">{generatedStory.title}</h3>
+                </div>
+                <p className="whitespace-pre-line text-sm leading-7 text-[#475569] sm:text-base">
+                  {generatedStory.content}
+                </p>
+              </div>
+            </Card>
+          )}
 
           {/* Memory Stats */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">

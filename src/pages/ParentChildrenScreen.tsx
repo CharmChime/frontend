@@ -109,8 +109,8 @@ export function ParentChildrenScreen({
     if (!draft) return;
 
     const age = Number(draft.age);
-    if (!Number.isInteger(age) || age < 6 || age > 18) {
-      toast.error('Child age must be between 6 and 18.');
+    if (!Number.isInteger(age) || age < 8 || age > 16) {
+      toast.error('Child age must be between 8 and 16 years.');
       return;
     }
 
@@ -171,8 +171,8 @@ export function ParentChildrenScreen({
     }
 
     const age = Number(newChild.age);
-    if (!Number.isInteger(age) || age < 6 || age > 18) {
-      toast.error('Child age must be between 6 and 18.');
+    if (!Number.isInteger(age) || age < 8 || age > 16) {
+      toast.error('Child age must be between 8 and 16 years.');
       return;
     }
 
@@ -240,7 +240,7 @@ export function ParentChildrenScreen({
               <div className="grid gap-4 md:grid-cols-2">
                 <input className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-[#2d3748]" placeholder="Child name" value={newChild.name} onChange={(event) => setNewChild({ ...newChild, name: event.target.value })} />
                 <input className="rounded-xl border border-gray-200 bg-gray-100 px-4 py-3 text-[#64748b]" aria-label="Registered guardian email" type="email" value={parentEmail} readOnly />
-                <input className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-[#2d3748]" placeholder="Age 6-18" type="number" min={6} max={18} value={newChild.age} onChange={(event) => setNewChild({ ...newChild, age: event.target.value })} />
+                <input className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-[#2d3748]" placeholder="Age 8-16" type="number" min={8} max={16} value={newChild.age} onChange={(event) => setNewChild({ ...newChild, age: event.target.value })} />
                 <input className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-[#2d3748]" placeholder="4-digit PIN" type="password" maxLength={4} value={newChild.pin} onChange={(event) => setNewChild({ ...newChild, pin: event.target.value })} />
                 <input className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-[#2d3748] md:col-span-2" placeholder="Confirm PIN" type="password" maxLength={4} value={newChild.confirmPin} onChange={(event) => setNewChild({ ...newChild, confirmPin: event.target.value })} />
               </div>
@@ -285,7 +285,7 @@ export function ParentChildrenScreen({
                     <div className="grid gap-4 md:grid-cols-3">
                       <input className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-[#2d3748]" value={draft.name} onChange={(event) => updateDraft(child.id, { name: event.target.value })} />
                       <input className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-[#2d3748]" value={draft.nickname} placeholder="Nickname" onChange={(event) => updateDraft(child.id, { nickname: event.target.value })} />
-                      <input className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-[#2d3748]" type="number" min={6} max={18} value={draft.age} onChange={(event) => updateDraft(child.id, { age: event.target.value })} />
+                      <input className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-[#2d3748]" type="number" min={8} max={16} value={draft.age} onChange={(event) => updateDraft(child.id, { age: event.target.value })} />
                     </div>
 
                     <div>

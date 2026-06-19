@@ -69,8 +69,8 @@ export function ChildAuthScreen({ onLogin, onRegister, onRequestPinReset, onRese
 
     if (!isLogin) {
       const numericAge = Number(age);
-      if (!Number.isInteger(numericAge) || numericAge < 6 || numericAge > 18) {
-        setError('Age must be between 6 and 18.');
+      if (!Number.isInteger(numericAge) || numericAge < 8 || numericAge > 16) {
+        setError('Child age must be between 8 and 16 years.');
         return;
       }
     }
@@ -222,8 +222,8 @@ export function ChildAuthScreen({ onLogin, onRegister, onRequestPinReset, onRese
                     label="How old are you?"
                     placeholder="Your age..."
                     type="number"
-                    min={6}
-                    max={18}
+                    min={8}
+                    max={16}
                     value={age}
                     onChange={(e) => setAge(e.target.value)}
                     variant="child"

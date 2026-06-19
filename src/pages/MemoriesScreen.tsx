@@ -8,8 +8,8 @@ import { ChildSidebar } from '../components/ChildSidebar';
 import { MobileMenuButton } from '../components/MobileMenuButton';
 import { LogoutConfirmation } from '../components/LogoutConfirmation';
 import { MemoryDetailScreen, type Memory } from './MemoryDetailScreen';
-import { ArrowLeft, Search, Filter, Calendar, Star, Heart, BookOpen, Sparkles, ChevronDown, Volume2, VolumeX, Smile, Edit, Trash2, RefreshCw, RotateCcw } from 'lucide-react';
-import { api, type Journal } from '../services/api';
+import { ArrowLeft, Search, Calendar, Star, Sparkles, Volume2, VolumeX, RefreshCw, RotateCcw } from 'lucide-react';
+import { api, type Journal, type Story } from '../services/api';
 import {
   formatDate,
   getJournalConfidence,
@@ -32,16 +32,16 @@ interface MemoriesScreenProps {
   childId?: string;
   onNavigate?: (page: string) => void;
   onLogout?: () => void;
-  onViewEntry?: (entryId: string) => void;
 }
 
-export function MemoriesScreen({ onBack, childName = 'Friend', childAvatar, childId, onNavigate, onLogout, onViewEntry }: MemoriesScreenProps) {
+export function MemoriesScreen({ onBack, childName = 'Friend', childAvatar, childId, onNavigate, onLogout }: MemoriesScreenProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedFilter, setSelectedFilter] = useState('all');
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [selectedMemory, setSelectedMemory] = useState<Memory | null>(null);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [journals, setJournals] = useState<Journal[]>([]);
+  const [stories, setStories] = useState<Story[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
   const [favoriteIds, setFavoriteIds] = useState<string[]>([]);
@@ -67,6 +67,7 @@ export function MemoriesScreen({ onBack, childName = 'Friend', childAvatar, chil
   useEffect(() => {
     if (!childId) {
       setJournals([]);
+      setStories([]);
       return;
     }
 
@@ -74,10 +75,15 @@ export function MemoriesScreen({ onBack, childName = 'Friend', childAvatar, chil
     setIsLoading(true);
     setError('');
 
-    api.journals
-      .list({ childId, search: searchQuery })
-      .then((data) => {
-        if (isMounted) setJournals(data.journals);
+    Promise.all([
+      api.journals.list({ childId }),
+      api.stories.list({ childId }),
+    ])
+      .then(([journalData, storyData]) => {
+        if (isMounted) {
+          setJournals(journalData.journals);
+          setStories(storyData.stories);
+        }
       })
       .catch((err) => {
         if (isMounted) {
@@ -93,7 +99,7 @@ export function MemoriesScreen({ onBack, childName = 'Friend', childAvatar, chil
     return () => {
       isMounted = false;
     };
-  }, [childId, searchQuery]);
+  }, [childId]);
 
   useEffect(() => {
     return () => {
@@ -105,11 +111,12 @@ export function MemoriesScreen({ onBack, childName = 'Friend', childAvatar, chil
   }, []);
 
   const allMemories: Memory[] = useMemo(
-    () =>
-      journals.map((journal) => {
+    () => {
+      const journalMemories: Memory[] = journals.map((journal) => {
         const mood = getJournalMoodLabel(journal);
         return {
           id: journal.id,
+          kind: 'journal',
           title: journal.title,
           preview: htmlToText(journal.content).slice(0, 120),
           content: journal.content,
@@ -117,6 +124,7 @@ export function MemoriesScreen({ onBack, childName = 'Friend', childAvatar, chil
           moodEmoji: moodEmoji(mood),
           date: formatDate(journal.createdAt),
           time: new Intl.DateTimeFormat(undefined, { hour: 'numeric', minute: '2-digit' }).format(new Date(journal.createdAt)),
+          createdAt: journal.createdAt,
           tag: journal.inputType === 'voice' ? 'Voice' : 'Journal',
           color: moodColor(mood),
           wordCount: wordCount(journal.content),
@@ -125,14 +133,53 @@ export function MemoriesScreen({ onBack, childName = 'Friend', childAvatar, chil
           confidence: getJournalConfidence(journal),
           aiFeedback: getJournalFeedback(journal),
         };
-      }),
-    [journals]
+      });
+      const storyMemories: Memory[] = stories.map((story) => {
+        const sourceJournal = story.journalId
+          ? journals.find((journal) => journal.id === story.journalId)
+          : undefined;
+        const mood = sourceJournal ? getJournalMoodLabel(sourceJournal) : '';
+
+        return {
+          id: story.id,
+          kind: 'story',
+          journalId: story.journalId || undefined,
+          childId: story.childId,
+          title: story.title,
+          preview: htmlToText(story.content).slice(0, 120),
+          content: story.content,
+          mood,
+          moodEmoji: mood ? moodEmoji(mood) : '📖',
+          date: formatDate(story.createdAt),
+          time: new Intl.DateTimeFormat(undefined, { hour: 'numeric', minute: '2-digit' }).format(new Date(story.createdAt)),
+          createdAt: story.createdAt,
+          updatedAt: story.updatedAt,
+          tag: 'Story',
+          color: 'child-lavender',
+          wordCount: wordCount(story.content),
+          readingTime: readingTime(story.content),
+          moral: story.moral,
+          theme: story.theme,
+          storyLength: story.length,
+          model: story.model,
+          provider: story.provider,
+        };
+      });
+
+      return [...journalMemories, ...storyMemories].sort(
+        (first, second) =>
+          new Date(second.createdAt).getTime() - new Date(first.createdAt).getTime()
+      );
+    },
+    [journals, stories]
   );
   const getFilteredMemories = () => {
     let filtered = allMemories;
 
     // Apply mood filter
-    if (selectedFilter !== 'all') {
+    if (selectedFilter === 'story') {
+      filtered = filtered.filter((memory) => memory.kind === 'story');
+    } else if (selectedFilter !== 'all') {
       filtered = filtered.filter(memory => memory.mood === selectedFilter);
     }
 
@@ -165,10 +212,12 @@ export function MemoriesScreen({ onBack, childName = 'Friend', childAvatar, chil
       cursor.setDate(cursor.getDate() - 1);
     }
 
-    const moodCounts = allMemories.reduce<Record<string, number>>((counts, memory) => {
+    const moodCounts = allMemories
+      .filter((memory) => memory.kind === 'journal')
+      .reduce<Record<string, number>>((counts, memory) => {
       counts[memory.mood] = (counts[memory.mood] || 0) + 1;
       return counts;
-    }, {});
+      }, {});
     const topMood = Object.entries(moodCounts).sort((first, second) => second[1] - first[1])[0]?.[0] || 'None';
     const voiceEntries = journals.filter((journal) => journal.inputType === 'voice' || journal.source === 'speech-to-text').length;
 
@@ -179,18 +228,31 @@ export function MemoriesScreen({ onBack, childName = 'Friend', childAvatar, chil
     };
   }, [allMemories, journals]);
 
-  // Calculate filter counts
-  const getFilterCount = (filterId: string) => {
-    if (filterId === 'all') return allMemories.length;
-    return allMemories.filter(m => m.mood === filterId).length;
-  };
+  const filters = useMemo(() => {
+    const moodCounts = allMemories
+      .filter((memory) => memory.kind === 'journal' && memory.mood)
+      .reduce<Record<string, number>>((counts, memory) => {
+        counts[memory.mood] = (counts[memory.mood] || 0) + 1;
+        return counts;
+      }, {});
+    const storyCount = allMemories.filter((memory) => memory.kind === 'story').length;
 
-  const filters = [
-    { id: 'all', label: 'All Memories', count: getFilterCount('all') },
-    { id: 'happy', label: 'Happy', count: getFilterCount('happy') },
-    { id: 'creative', label: 'Creative', count: getFilterCount('creative') },
-    { id: 'calm', label: 'Calm', count: getFilterCount('calm') },
-  ];
+    return [
+      { id: 'all', label: 'All Memories', count: allMemories.length },
+      ...(storyCount > 0 ? [{ id: 'story', label: 'Stories', count: storyCount }] : []),
+      ...Object.entries(moodCounts).map(([mood, count]) => ({
+        id: mood,
+        label: mood.charAt(0).toUpperCase() + mood.slice(1),
+        count,
+      })),
+    ];
+  }, [allMemories]);
+
+  useEffect(() => {
+    if (!filters.some((filter) => filter.id === selectedFilter)) {
+      setSelectedFilter('all');
+    }
+  }, [filters, selectedFilter]);
 
   const handleMemoryClick = (memoryId: string) => {
     const memory = allMemories.find(m => m.id === memoryId);
@@ -203,19 +265,47 @@ export function MemoriesScreen({ onBack, childName = 'Friend', childAvatar, chil
     setSelectedMemory(null);
   };
 
-  const handleEditMemory = (memory: Memory) => {
-    onViewEntry?.(memory.id);
+  const handleMemoryUpdated = (updatedMemory: Memory) => {
+    if (updatedMemory.kind !== 'journal') return;
+
+    setJournals((current) =>
+      current.map((journal) =>
+        journal.id === updatedMemory.id
+          ? {
+              ...journal,
+              title: updatedMemory.title,
+              content: updatedMemory.content,
+              updatedAt: new Date().toISOString(),
+            }
+          : journal
+      )
+    );
+    setSelectedMemory(updatedMemory);
   };
 
   const handleDeleteMemory = async (memoryId: string) => {
     try {
-      await api.journals.remove(memoryId);
-      setJournals((current) => current.filter((journal) => journal.id !== memoryId));
+      const memory = allMemories.find((item) => item.id === memoryId);
+
+      if (memory?.kind === 'story') {
+        await api.stories.remove(memoryId);
+        setStories((current) => current.filter((story) => story.id !== memoryId));
+      } else {
+        await api.journals.remove(memoryId);
+        setJournals((current) => current.filter((journal) => journal.id !== memoryId));
+      }
       setSelectedMemory(null);
       toast.success('Memory deleted.');
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Could not delete memory.');
     }
+  };
+
+  const handleStoryCreated = (story: Story) => {
+    setStories((current) => [
+      story,
+      ...current.filter((item) => item.id !== story.id),
+    ]);
   };
 
   const handleReadMemory = async (memory: Memory) => {
@@ -238,7 +328,9 @@ export function MemoriesScreen({ onBack, childName = 'Friend', childAvatar, chil
     setError('');
 
     try {
-      const audioBlob = await api.voice.textToSpeech({ text: htmlToText(memory.content) });
+      const audioBlob = memory.kind === 'story'
+        ? await api.voice.storyTts({ text: htmlToText(memory.content) })
+        : await api.voice.textToSpeech({ text: htmlToText(memory.content) });
       const audioUrl = URL.createObjectURL(audioBlob);
       const audio = new Audio(audioUrl);
       memoryAudioUrlRef.current = audioUrl;
@@ -277,8 +369,9 @@ export function MemoriesScreen({ onBack, childName = 'Friend', childAvatar, chil
       <MemoryDetailScreen
         memory={selectedMemory}
         onBack={handleBackToList}
-        onEdit={handleEditMemory}
+        onUpdated={handleMemoryUpdated}
         onDelete={handleDeleteMemory}
+        onStoryCreated={handleStoryCreated}
         childName={childName}
       />
     );
@@ -320,9 +413,6 @@ export function MemoriesScreen({ onBack, childName = 'Friend', childAvatar, chil
                   )}
                   <h1 className="text-[#1a365d] text-xl sm:text-2xl lg:text-3xl">My Memory Book 📖</h1>
                 </div>
-                <IconButton variant="child-yellow" size="medium" onClick={() => setSelectedFilter('all')}>
-                  <Filter className="w-5 h-5" />
-                </IconButton>
               </div>
 
               {/* Search Bar */}
@@ -347,7 +437,7 @@ export function MemoriesScreen({ onBack, childName = 'Friend', childAvatar, chil
               <div className="text-center space-y-2">
                 <div className="text-2xl sm:text-3xl">📝</div>
                 <div className="text-xl sm:text-2xl text-[#2d3748]">{allMemories.length}</div>
-                <p className="text-xs sm:text-sm text-[#64748b]">Total Entries</p>
+                <p className="text-xs sm:text-sm text-[#64748b]">Memories & Stories</p>
               </div>
             </Card>
 

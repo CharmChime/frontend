@@ -8,6 +8,7 @@ import { JournalEntryScreen } from '../pages/JournalEntryScreen';
 import { StoryModeScreen } from '../pages/StoryModeScreen';
 import { MemoriesScreen } from '../pages/MemoriesScreen';
 import { JournalDetailScreen } from '../pages/JournalDetailScreen';
+import { SavedStoryDetailScreen } from '../pages/SavedStoryDetailScreen';
 import { CalendarScreen } from '../pages/CalendarScreen';
 import { AchievementsScreen } from '../pages/AchievementsScreen';
 import { ChildSettingsScreen } from '../pages/ChildSettingsScreen';
@@ -138,6 +139,27 @@ function JournalDetailRoute({
       onNavigate={onNavigate}
       onLogout={onLogout}
       entryId={entryId || ''}
+    />
+  );
+}
+
+function SavedStoryDetailRoute({
+  childName,
+  childAvatar,
+  onBack,
+}: {
+  childName: string;
+  childAvatar?: string;
+  onBack: () => void;
+}) {
+  const { storyId } = useParams();
+
+  return (
+    <SavedStoryDetailScreen
+      storyId={storyId || ''}
+      childName={childName}
+      childAvatar={childAvatar}
+      onBack={onBack}
     />
   );
 }
@@ -500,6 +522,8 @@ export function ScreenNavigation() {
             onStoryMode={() => goTo('/child/story-mode')}
             onCalendar={() => goTo('/child/calendar')}
             onAchievements={() => goTo('/child/achievements')}
+            onOpenJournal={(journalId) => goTo(`/child/journal-detail/${journalId}`)}
+            onOpenStory={(storyId) => goTo(`/child/story-detail/${storyId}`)}
             onSettings={() => goTo('/child/settings')}
             onLogout={handleLogout}
           />
@@ -542,7 +566,6 @@ export function ScreenNavigation() {
             childId={child?.id}
             onNavigate={handleChildNavigation}
             onLogout={handleLogout}
-            onViewEntry={(entryId) => goTo(`/child/journal-detail/${entryId}`)}
           />
         }
       />
@@ -561,7 +584,21 @@ export function ScreenNavigation() {
       />
       <Route
         path="/child/journal-detail"
-        element={<Navigate to="/child/journal-detail/1" replace />}
+        element={<Navigate to="/child/memories" replace />}
+      />
+      <Route
+        path="/child/story-detail/:storyId"
+        element={
+          <SavedStoryDetailRoute
+            childName={childDisplayName}
+            childAvatar={childAvatar}
+            onBack={() => goTo('/child/memories')}
+          />
+        }
+      />
+      <Route
+        path="/child/story-detail"
+        element={<Navigate to="/child/memories" replace />}
       />
       <Route
         path="/child/calendar"
